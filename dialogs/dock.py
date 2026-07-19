@@ -7,6 +7,7 @@ routes their signals into the slots below.
 """
 from __future__ import annotations
 
+import os
 from contextlib import suppress
 
 from qgis.PyQt.QtCore import QSize, Qt, QTimer, pyqtSignal
@@ -40,14 +41,79 @@ from ..tools.worlddata import WorldData
 
 PLUGIN_TITLE = "02truesize — Map Truth Lab"
 
-_HINT_QSS = "color: #78909c; font-size: 8pt;"
-_STATUS_QSS = ("QLabel { background: #eceff1; color: #263238; border-radius: 5px;"
-               " padding: 5px 7px; }")
+_HINT_QSS = "color: #78909c; font-size: 8pt; background: transparent;"
+
+# The dock pins its own light design system so it reads identically under the
+# QGIS 3 light and QGIS 4 dark application themes (02viz 0.9.1 lesson: the
+# dark palette bleeds into every control you do not colour explicitly).
+_DOCK_QSS = """
+#z2tsRoot { background: #f6f9fb; }
+#z2tsRoot QLabel { background: transparent; color: #263238; }
+#z2tsRoot QTabWidget::pane { border: none; }
+#z2tsRoot QTabBar::tab {
+    background: #e3eaf0; color: #546e7a; padding: 5px 9px; font-weight: bold;
+    border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 2px;
+}
+#z2tsRoot QTabBar::tab:selected { background: #00897b; color: #ffffff; }
+#z2tsRoot QGroupBox {
+    background: #ffffff; border: 1px solid #d7e0e7; border-radius: 8px;
+    margin-top: 10px; padding: 10px 6px 6px 6px; font-weight: bold; color: #37474f;
+}
+#z2tsRoot QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
+#z2tsRoot QPushButton {
+    background: #ffffff; border: 1px solid #cfd8dc; border-radius: 6px;
+    padding: 5px 10px; color: #37474f;
+}
+#z2tsRoot QPushButton:hover { background: #e0f2f1; border-color: #80cbc4; }
+#z2tsRoot QPushButton:checked {
+    background: #00897b; border-color: #00695c; color: #ffffff; font-weight: bold;
+}
+#z2tsRoot QPushButton:disabled { color: #b0bec5; background: #f1f4f6; }
+#z2tsRoot QPushButton[class="tool"] { text-align: left; padding: 8px 12px; }
+#z2tsRoot QPushButton[class="primary"] {
+    background: #00897b; border-color: #00695c; color: #ffffff; font-weight: bold;
+}
+#z2tsRoot QPushButton[class="primary"]:hover { background: #00796b; }
+#z2tsRoot QComboBox {
+    background: #ffffff; border: 1px solid #cfd8dc; border-radius: 5px;
+    padding: 3px 8px; color: #263238;
+}
+#z2tsRoot QComboBox QAbstractItemView {
+    background: #ffffff; color: #263238;
+    selection-background-color: #b2dfdb; selection-color: #004d40;
+}
+#z2tsRoot QListWidget {
+    background: #ffffff; border: 1px solid #d7e0e7; border-radius: 6px; color: #263238;
+}
+#z2tsRoot QListWidget::item { padding: 3px 4px; }
+#z2tsRoot QListWidget::item:selected { background: #b2dfdb; color: #004d40; }
+#z2tsRoot QCheckBox { color: #37474f; background: transparent; }
+#z2tsRoot QScrollArea { background: transparent; border: none; }
+#z2tsRoot QScrollArea > QWidget > QWidget { background: transparent; }
+"""
+
+_GRADE_COLORS = {
+    "A+": "#1b5e20", "A": "#2e7d32", "B": "#558b2f",
+    "C": "#f9a825", "D": "#ef6c00", "E": "#d84315", "F": "#b71c1c",
+}
+
+
+def _card_qss(accent: str) -> str:
+    return ("QLabel { background: #ffffff; border: 1px solid #d7e0e7;"
+            f" border-left: 4px solid {accent}; border-radius: 6px;"
+            " padding: 6px 8px; color: #263238; }")
+
+
+def _grade_chip(grade: str) -> str:
+    color = _GRADE_COLORS.get(grade, "#546e7a")
+    return (f"<span style='background-color:{color}; color:#ffffff;"
+            f" font-weight:bold;'>&nbsp;{grade}&nbsp;</span>")
 
 
 def _tool_button(text: str) -> QPushButton:
     button = QPushButton(text)
     button.setCheckable(True)
+    button.setProperty("class", "tool")
     return button
 
 
@@ -84,15 +150,37 @@ class TrueSizeDockWidget(QDockWidget):
 
     def _build_ui(self) -> None:
         container = QWidget()
+        container.setObjectName("z2tsRoot")
+        container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        container.setStyleSheet(_DOCK_QSS)
+        container.setMinimumWidth(330)
         root = QVBoxLayout(container)
-        root.setContentsMargins(6, 6, 6, 6)
+        root.setContentsMargins(8, 8, 8, 8)
         root.setSpacing(6)
 
+        header = QHBoxLayout()
+        icon_label = QLabel()
+        icon_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                 "icons", "icon.png")
+        if os.path.exists(icon_path):
+            icon_label.setPixmap(QPixmap(icon_path).scaled(
+                22, 22, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation))
+        header.addWidget(icon_label, 0)
+        title = QLabel("<b>02truesize</b> "
+                       "<span style='color:#78909c;'>· every flat map lies</span>")
+        header.addWidget(title, 1)
+        root.addLayout(header)
+
         self.tabs = QTabWidget()
-        self.tabs.addTab(self._build_truesize_tab(), "True Size")
-        self.tabs.addTab(self._build_duel_tab(), "Size Duel")
-        self.tabs.addTab(self._build_truth_tab(), "Truth Tools")
-        self.tabs.addTab(self._build_distortion_tab(), "Distortion")
+        self.tabs.addTab(self._build_truesize_tab(), "🗺 True Size")
+        self.tabs.addTab(self._build_duel_tab(), "⚖ Duel")
+        self.tabs.addTab(self._build_truth_tab(), "🧭 Truth")
+        self.tabs.addTab(self._build_distortion_tab(), "🌐 Distort")
+        self.tabs.setTabToolTip(0, "Drag countries at their true size")
+        self.tabs.setTabToolTip(1, "Size Duel — which is really bigger?")
+        self.tabs.setTabToolTip(2, "Antipodes, great circles and fun units")
+        self.tabs.setTabToolTip(3, "Report card, Tissot circles and the live HUD")
         root.addWidget(self.tabs, 1)
 
         footer = QHBoxLayout()
@@ -149,7 +237,7 @@ class TrueSizeDockWidget(QDockWidget):
 
         self.truesize_status = QLabel("Ready when you are.")
         self.truesize_status.setWordWrap(True)
-        self.truesize_status.setStyleSheet(_STATUS_QSS)
+        self.truesize_status.setStyleSheet(_card_qss("#00897b"))
         layout.addWidget(self.truesize_status)
 
         self.ghost_list = QListWidget()
@@ -190,7 +278,7 @@ class TrueSizeDockWidget(QDockWidget):
         self.antipode_result = QLabel("Where would you surface if you dug straight through "
                                       "the Earth? Click the map to find out.")
         self.antipode_result.setWordWrap(True)
-        self.antipode_result.setStyleSheet(_STATUS_QSS)
+        self.antipode_result.setStyleSheet(_card_qss("#3949ab"))
         antipode_layout.addWidget(self.antipode_result)
         self.fly_button = QPushButton("Fly to the antipode")
         self.fly_button.setEnabled(False)
@@ -206,7 +294,7 @@ class TrueSizeDockWidget(QDockWidget):
         self.gc_result = QLabel("The shortest path on the globe is rarely the straight line "
                                 "on the map. Click two points to see the difference.")
         self.gc_result.setWordWrap(True)
-        self.gc_result.setStyleSheet(_STATUS_QSS)
+        self.gc_result.setStyleSheet(_card_qss("#1565c0"))
         gc_layout.addWidget(self.gc_result)
         layout.addWidget(gc_box)
 
@@ -224,7 +312,7 @@ class TrueSizeDockWidget(QDockWidget):
                                     "to get its area in Belgiums.")
         self.funits_result.setWordWrap(True)
         self.funits_result.setTextFormat(Qt.TextFormat.RichText)
-        self.funits_result.setStyleSheet(_STATUS_QSS)
+        self.funits_result.setStyleSheet(_card_qss("#2e7d32"))
         fun_layout.addWidget(self.funits_result)
         copy_button = QPushButton("Copy result")
         copy_button.clicked.connect(self._copy_funits)
@@ -241,12 +329,13 @@ class TrueSizeDockWidget(QDockWidget):
         card_box = QGroupBox("Projection honesty report card")
         card_layout = QVBoxLayout(card_box)
         grade_button = QPushButton("Grade my current projection")
+        grade_button.setProperty("class", "primary")
         grade_button.clicked.connect(self._grade_projection)
         card_layout.addWidget(grade_button)
         self.card_result = QLabel("Every flat map lies somehow. Find out how yours does.")
         self.card_result.setWordWrap(True)
         self.card_result.setTextFormat(Qt.TextFormat.RichText)
-        self.card_result.setStyleSheet(_STATUS_QSS)
+        self.card_result.setStyleSheet(_card_qss("#f4511e"))
         card_layout.addWidget(self.card_result)
         layout.addWidget(card_box)
 
@@ -271,6 +360,7 @@ class TrueSizeDockWidget(QDockWidget):
         combo_row.addStretch(1)
         tissot_layout.addLayout(combo_row)
         tissot_button = QPushButton("Add Tissot circles layer")
+        tissot_button.setProperty("class", "primary")
         tissot_button.clicked.connect(self._add_tissot_layer)
         tissot_layout.addWidget(tissot_button)
         self.tissot_status = QLabel("")
@@ -334,6 +424,7 @@ class TrueSizeDockWidget(QDockWidget):
             looks = f" · drawn ×{ghost.looks:.2f}" if abs(ghost.looks - 1.0) >= 0.05 else ""
             item = QListWidgetItem(QIcon(pixmap),
                                    f"{ghost.name} · {format_area_km2(ghost.area_km2)}{looks}")
+            item.setToolTip(ghost.label())
             self.ghost_list.addItem(item)
 
     def _remove_selected_ghost(self) -> None:
@@ -430,11 +521,11 @@ class TrueSizeDockWidget(QDockWidget):
         rows = " · ".join(f"{int(r['lat'])}°: ×{r['areal_rel']:.2f}" for r in card["rows"])
         self.card_result.setText(
             f"<b>{card['crs_name']}</b><br>"
-            f"Area honesty: <b>{card['area_grade']}</b> "
-            f"(worst inflation ×{card['area_spread']:.1f})<br>"
-            f"Shape honesty: <b>{card['shape_grade']}</b> "
-            f"(max bend {card['max_omega_deg']:.0f}°)<br>"
-            f"<span style='color:#78909c;'>{rows}</span><br>"
+            f"Area honesty: {_grade_chip(card['area_grade'])} "
+            f"<span style='color:#78909c;'>(worst inflation ×{card['area_spread']:.1f})</span><br>"
+            f"Shape honesty: {_grade_chip(card['shape_grade'])} "
+            f"<span style='color:#78909c;'>(max bend {card['max_omega_deg']:.0f}°)</span><br>"
+            f"<span style='color:#78909c; font-size:8pt;'>{rows}</span><br>"
             f"<i>{card['verdict']}</i>")
 
     def _add_tissot_layer(self) -> None:

@@ -24,8 +24,9 @@ from ..core.quiz import SizeDuel
 
 BEST_STREAK_KEY = "zero2truesize/duel_best_streak"
 
-CARD_BG = QColor(245, 247, 250)
-CARD_BORDER = QColor(176, 190, 197)
+CARD_BG = QColor(255, 255, 255)
+CARD_BORDER = QColor(215, 224, 231)
+HOVER_BORDER = QColor(0, 137, 123)
 SHAPE_FILL = QColor(69, 90, 100, 215)
 WIN_BORDER = QColor(46, 125, 50)
 LOSE_BORDER = QColor(198, 40, 40)
@@ -40,9 +41,27 @@ class ShapePanel(QWidget):
         super().__init__(parent)
         self._path: QPainterPath | None = None
         self._state: str | None = None
-        self.setMinimumSize(140, 150)
+        self._hover = False
+        self._clickable = True
+        self.setMinimumSize(140, 155)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def set_clickable(self, clickable: bool) -> None:
+        self._clickable = clickable
+        self.setCursor(Qt.CursorShape.PointingHandCursor if clickable
+                       else Qt.CursorShape.ArrowCursor)
+        self.update()
+
+    def enterEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        del event
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        del event
+        self._hover = False
+        self.update()
 
     def set_shape(self, merc_points: list[tuple[float, float]], scale: float) -> None:
         path = QPainterPath()
@@ -80,6 +99,8 @@ class ShapePanel(QWidget):
             border, width = WIN_BORDER, 3
         elif self._state == "lose":
             border, width = LOSE_BORDER, 3
+        elif self._hover and self._clickable:
+            border, width = HOVER_BORDER, 2
         painter.setPen(QPen(border, width))
         painter.setBrush(CARD_BG)
         painter.drawRoundedRect(rect, 8, 8)
@@ -146,10 +167,11 @@ class DuelWidget(QWidget):
         root.addWidget(self.result)
 
         self.stats = QLabel("")
-        self.stats.setStyleSheet("color: #78909c;")
+        self.stats.setStyleSheet("color: #78909c; background: transparent;")
         root.addWidget(self.stats)
 
-        self.next_button = QPushButton("▶ New round")
+        self.next_button = QPushButton("Skip round")
+        self.next_button.setProperty("class", "primary")
         self.next_button.clicked.connect(self.new_round)
         root.addWidget(self.next_button)
         root.addStretch(1)
@@ -181,11 +203,14 @@ class DuelWidget(QWidget):
         scale = self._common_scale(merc_a, merc_b)
         self.panel_a.set_shape(merc_a, scale)
         self.panel_b.set_shape(merc_b, scale)
+        self.panel_a.set_clickable(True)
+        self.panel_b.set_clickable(True)
         self.label_a.setText(f"<b>{a['name']}</b>")
         self.label_b.setText(f"<b>{b['name']}</b>")
         self.result.setText("Click the one you think is truly bigger…")
-        self._update_stats()
+        self.next_button.setText("Skip round")
         self._accepting = True
+        self._update_stats()
 
     def _common_scale(self, merc_a, merc_b) -> float:
         target_px = 120.0
@@ -205,6 +230,9 @@ class DuelWidget(QWidget):
         if result is None:
             return
         self._accepting = False
+        self.panel_a.set_clickable(False)
+        self.panel_b.set_clickable(False)
+        self.next_button.setText("▶ Next round")
         winner_key = result["winner_key"]
         self.panel_a.set_state("win" if winner_key == "a" else "lose")
         self.panel_b.set_state("win" if winner_key == "b" else "lose")
@@ -234,6 +262,8 @@ class DuelWidget(QWidget):
     def _update_stats(self) -> None:
         if self._engine is None:
             return
+        round_no = self._engine.rounds + 1 if self._accepting else max(1, self._engine.rounds)
         self.stats.setText(
-            f"Score {self._engine.correct_count}/{self._engine.rounds} · "
-            f"streak {self._engine.streak} · best {self._engine.best_streak}")
+            f"Round {round_no} · score {self._engine.correct_count}/"
+            f"{self._engine.rounds} · streak {self._engine.streak} · "
+            f"best {self._engine.best_streak}")

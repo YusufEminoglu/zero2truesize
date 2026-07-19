@@ -3,6 +3,17 @@
 All notable changes to **02truesize — Map Truth Lab** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/).
 
+## [0.2.0] - 2026-07-20
+
+Icon redesign + GUI overhaul.
+
+### Changed
+- **New icon** in the 02-family visual language (dark-teal panel, soft mint border, glowing mint outline landmass vs its solid coral true size, bold arrow). The previous icon traced the real Greenland coastline, which collapsed into noise at toolbar sizes; the new stylised landmass stays crisp at 24 px.
+- **Dock redesigned around a pinned light design system** that reads identically under the QGIS 3 light and QGIS 4 dark application themes: a header row with the plugin icon and tagline, teal tab badges with emoji, white card panels with a per-tool accent stripe (True Size teal, antipode indigo, great circle blue, fun units green, report card coral), consistently styled buttons (the active map tool is now unmistakably highlighted), and theme-proof combos, lists and checkboxes.
+- **Projection report card grades render as coloured chips** — green A+ down to red F — instead of plain text.
+- **Size Duel polish**: white silhouette cards with a teal hover highlight, click cursors only while a guess is open, a round counter in the stats line, and the action button now reads "Skip round" before a guess and "▶ Next round" after, in the accent style.
+- Ghost list entries now carry full-detail tooltips.
+
 ## [0.1.0] - 2026-07-19
 
 First release.
