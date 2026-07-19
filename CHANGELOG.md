@@ -3,6 +3,24 @@
 All notable changes to **02truesize — Map Truth Lab** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/).
 
+## [0.3.1] - 2026-07-20
+
+### Fixed
+- Selecting **Built-in world countries** now immediately checks its visibility
+  control, adds the bundled 238-country layer and zooms to the world. Selecting
+  it also repairs a layer removed directly from the project tree.
+- Replaced the unsuitable current-canvas Overpass polygon query with explicit
+  country + ADM0/ADM1 administrative vector selection.
+
+### Changed
+- Administrative downloads now use the programmatic geoBoundaries `gbOpen`
+  catalogue and its direct GeoJSON vectors. The resulting memory layer stores
+  the dataset's source, year and license metadata.
+- The downloader contains only country and first-level administrative units;
+  buildings, land use, leisure, natural and water polygons were removed.
+- Documented why authenticated/licensed FAO GAUL Earth Engine collections and
+  raw multipart Overpass relations are not used as the anonymous backend.
+
 ## [0.3.0] - 2026-07-20
 
 ### Added

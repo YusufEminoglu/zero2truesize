@@ -38,7 +38,7 @@ from ..tools.support import from_wgs84
 from ..tools.tissot import DistortionHUD, crs_report_card, make_tissot_layer
 from ..tools.truesize import TrueSizeManager
 from ..tools.worlddata import WorldData
-from ..tools.osm_download import OsmDownloadManager
+from ..tools.admin_download import AdminDownloadManager
 
 PLUGIN_TITLE = "02truesize — Map Truth Lab"
 
@@ -131,7 +131,7 @@ class TrueSizeDockWidget(QDockWidget):
         self.world = WorldData.instance()
         self.manager = TrueSizeManager(canvas)
         self.manager.changed.connect(self._refresh_ghost_list)
-        self.osm = OsmDownloadManager(self)
+        self.admin = AdminDownloadManager(self)
         self.hud = DistortionHUD(canvas)
         self._tool_buttons: dict[str, QPushButton] = {}
         self._last_antipode: tuple[float, float] | None = None
@@ -142,9 +142,12 @@ class TrueSizeDockWidget(QDockWidget):
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         self._build_ui()
-        self.osm.started.connect(self._osm_started)
-        self.osm.finished.connect(self._osm_finished)
-        self.osm.failed.connect(self._osm_failed)
+        self.admin.started.connect(self._admin_started)
+        self.admin.finished.connect(self._admin_finished)
+        self.admin.failed.connect(self._admin_failed)
+        # Keep the default source, checkbox and actual project layer in sync.
+        QTimer.singleShot(0, lambda: self._on_source_changed(
+            self.source_combo.currentIndex()))
         self._fact_timer = QTimer(self)
         self._fact_timer.setInterval(30000)
         self._fact_timer.timeout.connect(self._next_fact)
@@ -239,27 +242,53 @@ class TrueSizeDockWidget(QDockWidget):
         self.source_combo.addItems([
             "Built-in world countries",
             "Active polygon layer",
-            "Downloaded OSM polygons",
+            "Downloaded administrative boundaries",
         ])
+        self.source_combo.currentIndexChanged.connect(self._on_source_changed)
         source_row.addWidget(self.source_combo, 1)
         layout.addLayout(source_row)
 
-        osm_box = QGroupBox("OpenStreetMap polygons")
-        osm_layout = QVBoxLayout(osm_box)
-        osm_hint = QLabel(
-            "Zoom to a neighbourhood (max 6 × 6 km / 25 km²), then download "
-            "buildings, boundaries, land use, leisure, natural and water areas.")
-        osm_hint.setWordWrap(True)
-        osm_hint.setStyleSheet(_HINT_QSS)
-        osm_layout.addWidget(osm_hint)
-        self.osm_button = QPushButton("Download polygons in current view")
-        self.osm_button.clicked.connect(self._download_osm)
-        osm_layout.addWidget(self.osm_button)
-        self.osm_status = QLabel("Online data © OpenStreetMap contributors.")
-        self.osm_status.setWordWrap(True)
-        self.osm_status.setStyleSheet(_HINT_QSS)
-        osm_layout.addWidget(self.osm_status)
-        layout.addWidget(osm_box)
+        admin_box = QGroupBox("Administrative boundary download")
+        admin_layout = QVBoxLayout(admin_box)
+        admin_hint = QLabel(
+            "Choose a country and download either its national boundary or its "
+            "ISO 3166-2 first-level administrative units. The canvas extent is "
+            "not used for the query.")
+        admin_hint.setWordWrap(True)
+        admin_hint.setStyleSheet(_HINT_QSS)
+        admin_layout.addWidget(admin_hint)
+
+        country_row = QHBoxLayout()
+        country_row.addWidget(QLabel("Country:"))
+        self.admin_country = QComboBox()
+        records = sorted(self.world.records(), key=lambda record: record["name"])
+        turkey_index = 0
+        for index, record in enumerate(records):
+            self.admin_country.addItem(record["name"], record.get("iso", ""))
+            if record["name"] in ("Turkey", "Türkiye"):
+                turkey_index = index
+        self.admin_country.setCurrentIndex(turkey_index)
+        country_row.addWidget(self.admin_country, 1)
+        admin_layout.addLayout(country_row)
+
+        level_row = QHBoxLayout()
+        level_row.addWidget(QLabel("Boundary set:"))
+        self.admin_level = QComboBox()
+        self.admin_level.addItem("Country boundary (ADM0)", "ADM0")
+        self.admin_level.addItem("First-level units (ADM1)", "ADM1")
+        level_row.addWidget(self.admin_level, 1)
+        admin_layout.addLayout(level_row)
+
+        self.admin_button = QPushButton("Download selected administrative boundaries")
+        self.admin_button.clicked.connect(self._download_admin)
+        admin_layout.addWidget(self.admin_button)
+        self.admin_status = QLabel(
+            "Vector data: geoBoundaries gbOpen. Source and license metadata "
+            "are stored on the downloaded layer.")
+        self.admin_status.setWordWrap(True)
+        self.admin_status.setStyleSheet(_HINT_QSS)
+        admin_layout.addWidget(self.admin_status)
+        layout.addWidget(admin_box)
 
         pick = _tool_button("🖐  Pick up && drag")
         self._register_tool_button("truesize", pick)
@@ -435,12 +464,22 @@ class TrueSizeDockWidget(QDockWidget):
                 button.blockSignals(False)
 
     def truesize_source_mode(self) -> str:
-        return ("world", "active", "osm")[self.source_combo.currentIndex()]
+        return ("world", "active", "admin")[self.source_combo.currentIndex()]
 
     def truesize_source_layer(self):
-        if self.truesize_source_mode() == "osm":
-            return self.osm.layer()
+        if self.truesize_source_mode() == "admin":
+            return self.admin.layer()
         return self.iface.activeLayer()
+
+    def _on_source_changed(self, index: int) -> None:
+        if index != 0:
+            return
+        if not self.world_checkbox.isChecked():
+            self.world_checkbox.setChecked(True)
+            return
+        # Recover when the layer was removed directly from the layer tree.
+        if self.world.project_layer() is None:
+            self._toggle_world_layer(True)
 
     # ── True Size slots ───────────────────────────────────────────────
 
@@ -495,33 +534,36 @@ class TrueSizeDockWidget(QDockWidget):
             canvas.setExtent(extent)
             canvas.refresh()
 
-    def _download_osm(self) -> None:
-        if self.osm.busy:
-            self.osm.cancel()
+    def _download_admin(self) -> None:
+        if self.admin.busy:
+            self.admin.cancel()
             return
-        canvas = self.iface.mapCanvas()
+        iso3 = self.admin_country.currentData()
+        level = self.admin_level.currentData()
+        country_name = self.admin_country.currentText()
         try:
-            self.osm.download(canvas.extent(), canvas.mapSettings().destinationCrs())
+            self.admin.download(iso3, level, country_name)
         except (RuntimeError, ValueError) as exc:
-            self._osm_failed(str(exc))
+            self._admin_failed(str(exc))
 
-    def _osm_started(self, summary: str) -> None:
-        self.osm_button.setText("Cancel download")
-        self.osm_status.setText(f"Downloading OSM polygons for {summary}…")
+    def _admin_started(self, summary: str) -> None:
+        self.admin_button.setText("Cancel download")
+        self.admin_status.setText(f"Downloading administrative boundaries: {summary}…")
 
-    def _osm_finished(self, layer) -> None:
-        self.osm_button.setText("Refresh polygons in current view")
+    def _admin_finished(self, layer) -> None:
+        self.admin_button.setText("Refresh selected administrative boundaries")
         self.source_combo.setCurrentIndex(2)
         self.iface.setActiveLayer(layer)
-        self.osm_status.setText(
-            f"Ready: {layer.featureCount()} polygons. Source switched to downloaded OSM; "
-            "press “Pick up & drag” and click a polygon.")
+        self.admin_status.setText(
+            f"Ready: {layer.featureCount()} administrative units. Source switched "
+            "to the downloaded layer; press “Pick up & drag” and click a boundary.")
 
-    def _osm_failed(self, message: str) -> None:
-        self.osm_button.setText(
-            "Refresh polygons in current view" if self.osm.layer() is not None
-            else "Download polygons in current view")
-        self.osm_status.setText(message)
+    def _admin_failed(self, message: str) -> None:
+        self.admin_button.setText(
+            "Refresh selected administrative boundaries"
+            if self.admin.layer() is not None
+            else "Download selected administrative boundaries")
+        self.admin_status.setText(message)
 
     def _refresh_ghost_list(self) -> None:
         self.ghost_list.clear()
@@ -670,7 +712,7 @@ class TrueSizeDockWidget(QDockWidget):
 
     def dispose(self) -> None:
         self._fact_timer.stop()
-        self.osm.cancel()
+        self.admin.cancel()
         self.hud.dispose()
         self.manager.dispose()
         self.world.remove_world_layer_from_project()

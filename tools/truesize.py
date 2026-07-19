@@ -316,10 +316,10 @@ class TrueSizePickTool(QgsMapTool):
         else:
             layer = self._source_layer()
             if not is_polygon_layer(layer):
-                if self._source_mode() == "osm":
+                if self._source_mode() == "admin":
                     self.message.emit(
-                        "No downloaded OSM polygon layer is available — zoom in and use "
-                        "“Download polygons in current view” first.")
+                        "No downloaded administrative layer is available — choose a "
+                        "country and boundary set, then download it first.")
                 else:
                     self.message.emit(
                         "The active layer is not a polygon layer — select one in the layers "

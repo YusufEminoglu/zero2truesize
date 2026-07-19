@@ -24,9 +24,9 @@
 ## ✨ Features
 
 - **True Size drag** — grab any country (bundled offline world layer) *or any polygon from your own layers* and drag it across the map; the outline is re-projected on the fly through an equal-area azimuthal projection centred under your cursor, so it **always covers its true ground area**. Rotate with `R`/`E`, drop as many coloured ghosts as you like, export them as a layer.
-- **Built-in OSM polygons** — zoom to a neighbourhood and download buildings,
-  administrative boundaries, land-use, leisure, natural and water polygons
-  directly from Overpass; the result becomes a ready-to-drag memory layer.
+- **Administrative boundary vectors** — choose a country and download its ADM0
+  country boundary or ADM1 first-level units directly from the open
+  geoBoundaries catalogue; the result becomes a ready-to-drag memory layer.
 - **Size Duel** — a built-in game: two countries drawn exactly the way a web-Mercator map draws them; guess which is *really* bigger. Score, streaks, and a per-round confession of how much the projection lied.
 - **Projection honesty report card** — one click grades the **current project CRS**: separate marks for area and shape honesty (A+ to F), per-latitude inflation figures and a plain-language verdict.
 - **Tissot indicatrix circles** — generate the classic distortion diagnostic as a styled memory layer (radius and spacing configurable): equal circles on the ground, telling shapes on the map.
@@ -36,8 +36,8 @@
 - **Fun units** — accurate geodesic measurements first, then the fun: areas in football pitches, Central Parks and **Belgiums**; distances in marathons, Bosphorus bridges and fractions of the way to the Moon.
 - **Offline-first, dependency-free** — the generalized [Natural Earth](https://www.naturalearthdata.com)
   country workflow, geodesy and map tools work fully offline. Optional local
-  polygons use the built-in bounded OSM downloader; no external QGIS or Python
-  dependency is required.
+  administrative vectors use the built-in geoBoundaries downloader; no external
+  QGIS or Python dependency is required.
 
 ## 🚀 Installation
 
@@ -55,17 +55,17 @@ Requires QGIS 3.28 or newer (QGIS 4 ready). No external Python dependencies.
 4. Open the **Size Duel** tab and see how many rounds of "which is really bigger?" you survive.
 5. On the **Distortion** tab, press **Grade my current projection** — then switch the project CRS (e.g. EPSG:3857 vs Mollweide) and grade it again.
 
-For local features, zoom to a view no larger than 6 × 6 km / 25 km² and press
-**Download polygons in current view**. The source switches to the downloaded OSM
-layer automatically. Downloaded data is © OpenStreetMap contributors and stays
-in memory unless you save it with QGIS **Export > Save Features As**.
+For online administrative data, choose a country and either **ADM0** or **ADM1**,
+then press **Download selected administrative boundaries**. The source switches
+to the downloaded layer automatically. Data stays in memory unless you save it
+with QGIS **Export > Save Features As**.
 
 ## ⚙️ Reference
 
 | Tab | Tool | What it does |
 |-----|------|--------------|
-| True Size | Pick up & drag | Equal-area re-centred ghost outlines of countries, active-layer polygons or downloaded OSM polygons; rotation, multi-ghost, export to layer |
-| True Size | Download OSM polygons | Bounded current-view Overpass download for buildings, boundaries, land use, leisure, natural and water areas |
+| True Size | Pick up & drag | Equal-area re-centred ghost outlines of countries, active-layer polygons or downloaded administrative units; rotation, multi-ghost, export to layer |
+| True Size | Download boundaries | Country-selected ADM0/ADM1 vector download through geoBoundaries gbOpen |
 | Size Duel | — | Mercator-drawn silhouettes, guess the truly bigger one; score, streak and best-streak memory |
 | Truth Tools | Antipode tunnel | Click → antipode marker, country-or-ocean verdict, fly-to |
 | Truth Tools | Great circle vs map line | Geodesic path vs straight map line with both ground lengths and the difference |
@@ -91,4 +91,6 @@ in memory unless you save it with QGIS **Export > Save Features As**.
 GPL-3.0 © [Yusuf Eminoğlu](https://github.com/YusufEminoglu) — bug reports and feature requests welcome in [Issues](https://github.com/YusufEminoglu/zero2truesize/issues).
 
 World outlines derived from QGIS's bundled Natural Earth data (public domain). Inspired by [thetruesize.com](https://thetruesize.com).
-Optional online polygon data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).
+Optional administrative vectors come from
+[geoBoundaries gbOpen](https://www.geoboundaries.org/) with source/year/license
+metadata preserved on the layer; attribution is required.

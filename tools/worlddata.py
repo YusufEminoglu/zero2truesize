@@ -106,6 +106,7 @@ class WorldData:
                 ring = decimate_ring(unwrap_ring(largest_outer_ring(geometry)), 350)
                 records.append({
                     "name": str(props["name"]),
+                    "iso": str(props.get("iso") or ""),
                     "area_km2": float(props.get("area_km2") or 0.0),
                     "lat": float(props.get("lat") or 0.0),
                     "lon": float(props.get("lon") or 0.0),
