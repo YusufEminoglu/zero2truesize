@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import suppress
 
 from qgis.core import (
     QgsFeature,
     QgsFeatureRequest,
     QgsFillSymbol,
+    QgsGeometry,
     QgsPointXY,
     QgsProject,
     QgsRectangle,
@@ -52,8 +54,10 @@ class WorldData:
         """The utility layer used for picking; never added to the project."""
         if self._layer is None:
             layer = QgsVectorLayer(DATA_PATH, WORLD_LAYER_NAME, "ogr")
-            if not layer.isValid():
-                return None
+            if not layer.isValid() or layer.featureCount() == 0:
+                layer = self._memory_world_layer()
+                if layer is None:
+                    return None
             self._layer = layer
         return self._layer
 
@@ -125,16 +129,61 @@ class WorldData:
         if existing is not None:
             return existing
         layer = QgsVectorLayer(DATA_PATH, WORLD_LAYER_NAME, "ogr")
-        if not layer.isValid():
-            return None
+        if not layer.isValid() or layer.featureCount() == 0:
+            # Belt and braces: if OGR cannot read the bundled file for any
+            # reason, rebuild the layer in memory from the raw JSON.
+            layer = self._memory_world_layer()
+            if layer is None:
+                return None
         symbol = QgsFillSymbol.createSimple({
             "color": "236,239,241,255",
             "outline_color": "96,125,139,255",
             "outline_width": "0.25",
         })
         layer.setRenderer(QgsSingleSymbolRenderer(symbol))
-        QgsProject.instance().addMapLayer(layer)
+        project = QgsProject.instance()
+        # Insert at the very top of the layer tree so the world is never
+        # silently buried under a basemap.
+        project.addMapLayer(layer, False)
+        project.layerTreeRoot().insertLayer(0, layer)
         self._project_layer_id = layer.id()
+        return layer
+
+    def _memory_world_layer(self) -> QgsVectorLayer | None:
+        if not os.path.exists(DATA_PATH):
+            return None
+        uri = ("MultiPolygon?crs=EPSG:4326&field=name:string(100)"
+               "&field=iso:string(8)&field=area_km2:double")
+        layer = QgsVectorLayer(uri, WORLD_LAYER_NAME, "memory")
+        features = []
+        with suppress(Exception):
+            with open(DATA_PATH, encoding="utf-8") as handle:
+                data = json.load(handle)
+            for feat in data.get("features", []):
+                props = feat.get("properties") or {}
+                geometry = feat.get("geometry") or {}
+                coords = geometry.get("coordinates") or []
+                if geometry.get("type") == "Polygon":
+                    coords = [coords]
+                multi = []
+                for poly in coords:
+                    rings = []
+                    for ring in poly:
+                        rings.append([QgsPointXY(float(p[0]), float(p[1])) for p in ring])
+                    if rings:
+                        multi.append(rings)
+                if not multi:
+                    continue
+                feature = QgsFeature(layer.fields())
+                feature.setGeometry(QgsGeometry.fromMultiPolygonXY(multi))
+                feature.setAttributes([str(props.get("name") or ""),
+                                       str(props.get("iso") or ""),
+                                       float(props.get("area_km2") or 0.0)])
+                features.append(feature)
+        if not features:
+            return None
+        layer.dataProvider().addFeatures(features)
+        layer.updateExtents()
         return layer
 
     def remove_world_layer_from_project(self) -> None:

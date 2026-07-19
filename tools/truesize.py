@@ -260,12 +260,12 @@ class TrueSizePickTool(QgsMapTool):
 
     message = pyqtSignal(str)
 
-    def __init__(self, canvas, manager: TrueSizeManager, world, source_mode, active_layer):
+    def __init__(self, canvas, manager: TrueSizeManager, world, source_mode, source_layer):
         super().__init__(canvas)
         self._manager = manager
         self._world = world
         self._source_mode = source_mode          # () -> "world" | "active"
-        self._active_layer = active_layer        # () -> QgsMapLayer | None
+        self._source_layer = source_layer        # () -> QgsMapLayer | None
         self._carry: Ghost | None = None
         self._throttle = QElapsedTimer()
         self._throttle.start()
@@ -314,10 +314,16 @@ class TrueSizePickTool(QgsMapTool):
             area_km2 = float(feature.attribute("area_km2") or 0.0)
             geom = QgsGeometry(feature.geometry())
         else:
-            layer = self._active_layer()
+            layer = self._source_layer()
             if not is_polygon_layer(layer):
-                self.message.emit("The active layer is not a polygon layer — select one in the "
-                                  "layers panel, or switch the source to the world countries.")
+                if self._source_mode() == "osm":
+                    self.message.emit(
+                        "No downloaded OSM polygon layer is available — zoom in and use "
+                        "“Download polygons in current view” first.")
+                else:
+                    self.message.emit(
+                        "The active layer is not a polygon layer — select one in the layers "
+                        "panel, or switch the source to the world countries.")
                 return
             found = self._find_in_layer(layer, wgs, map_point)
             if found is None:

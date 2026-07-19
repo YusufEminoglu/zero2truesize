@@ -111,6 +111,9 @@ class O2TrueSizePlugin:
                 self._dock.show_message(key, f"Could not create the '{key}' tool.")
                 return
             self._tools[key] = tool
+        if key == "truesize" and self._dock.truesize_source_mode() == "world":
+            # There must be something visible to click on.
+            self._dock.ensure_world_layer_visible()
         canvas.setMapTool(tool)
 
     def _deactivate_tool(self) -> None:
@@ -126,7 +129,7 @@ class O2TrueSizePlugin:
             from .tools.truesize import TrueSizePickTool
 
             tool = TrueSizePickTool(canvas, dock.manager, dock.world,
-                                    dock.truesize_source_mode, self.iface.activeLayer)
+                                    dock.truesize_source_mode, dock.truesize_source_layer)
             tool.message.connect(dock.set_tool_message)
             return tool
         if key == "antipode":

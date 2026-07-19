@@ -24,6 +24,9 @@
 ## ✨ Features
 
 - **True Size drag** — grab any country (bundled offline world layer) *or any polygon from your own layers* and drag it across the map; the outline is re-projected on the fly through an equal-area azimuthal projection centred under your cursor, so it **always covers its true ground area**. Rotate with `R`/`E`, drop as many coloured ghosts as you like, export them as a layer.
+- **Built-in OSM polygons** — zoom to a neighbourhood and download buildings,
+  administrative boundaries, land-use, leisure, natural and water polygons
+  directly from Overpass; the result becomes a ready-to-drag memory layer.
 - **Size Duel** — a built-in game: two countries drawn exactly the way a web-Mercator map draws them; guess which is *really* bigger. Score, streaks, and a per-round confession of how much the projection lied.
 - **Projection honesty report card** — one click grades the **current project CRS**: separate marks for area and shape honesty (A+ to F), per-latitude inflation figures and a plain-language verdict.
 - **Tissot indicatrix circles** — generate the classic distortion diagnostic as a styled memory layer (radius and spacing configurable): equal circles on the ground, telling shapes on the map.
@@ -31,7 +34,10 @@
 - **Antipode tunnel** — click anywhere to learn where you would surface if you dug straight through the Earth, with a land-or-ocean verdict (it is almost always ocean) and a fly-to button.
 - **Great-circle truth** — the genuinely shortest path between two clicks drawn against the map's straight line, with the wasted kilometres spelled out.
 - **Fun units** — accurate geodesic measurements first, then the fun: areas in football pitches, Central Parks and **Belgiums**; distances in marathons, Bosphorus bridges and fractions of the way to the Moon.
-- **Fully offline** — a bundled generalized [Natural Earth](https://www.naturalearthdata.com) countries layer (public domain), pure-Python geodesy, native QGIS map tools. No external dependencies, nothing downloaded.
+- **Offline-first, dependency-free** — the generalized [Natural Earth](https://www.naturalearthdata.com)
+  country workflow, geodesy and map tools work fully offline. Optional local
+  polygons use the built-in bounded OSM downloader; no external QGIS or Python
+  dependency is required.
 
 ## 🚀 Installation
 
@@ -49,11 +55,17 @@ Requires QGIS 3.28 or newer (QGIS 4 ready). No external Python dependencies.
 4. Open the **Size Duel** tab and see how many rounds of "which is really bigger?" you survive.
 5. On the **Distortion** tab, press **Grade my current projection** — then switch the project CRS (e.g. EPSG:3857 vs Mollweide) and grade it again.
 
+For local features, zoom to a view no larger than 6 × 6 km / 25 km² and press
+**Download polygons in current view**. The source switches to the downloaded OSM
+layer automatically. Downloaded data is © OpenStreetMap contributors and stays
+in memory unless you save it with QGIS **Export > Save Features As**.
+
 ## ⚙️ Reference
 
 | Tab | Tool | What it does |
 |-----|------|--------------|
-| True Size | Pick up & drag | Equal-area re-centred ghost outlines of countries or your own polygons; rotation, multi-ghost, export to layer |
+| True Size | Pick up & drag | Equal-area re-centred ghost outlines of countries, active-layer polygons or downloaded OSM polygons; rotation, multi-ghost, export to layer |
+| True Size | Download OSM polygons | Bounded current-view Overpass download for buildings, boundaries, land use, leisure, natural and water areas |
 | Size Duel | — | Mercator-drawn silhouettes, guess the truly bigger one; score, streak and best-streak memory |
 | Truth Tools | Antipode tunnel | Click → antipode marker, country-or-ocean verdict, fly-to |
 | Truth Tools | Great circle vs map line | Geodesic path vs straight map line with both ground lengths and the difference |
@@ -79,3 +91,4 @@ Requires QGIS 3.28 or newer (QGIS 4 ready). No external Python dependencies.
 GPL-3.0 © [Yusuf Eminoğlu](https://github.com/YusufEminoglu) — bug reports and feature requests welcome in [Issues](https://github.com/YusufEminoglu/zero2truesize/issues).
 
 World outlines derived from QGIS's bundled Natural Earth data (public domain). Inspired by [thetruesize.com](https://thetruesize.com).
+Optional online polygon data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright).

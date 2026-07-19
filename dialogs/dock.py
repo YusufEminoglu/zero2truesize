@@ -38,6 +38,7 @@ from ..tools.support import from_wgs84
 from ..tools.tissot import DistortionHUD, crs_report_card, make_tissot_layer
 from ..tools.truesize import TrueSizeManager
 from ..tools.worlddata import WorldData
+from ..tools.osm_download import OsmDownloadManager
 
 PLUGIN_TITLE = "02truesize — Map Truth Lab"
 
@@ -51,7 +52,7 @@ _DOCK_QSS = """
 #z2tsRoot QLabel { background: transparent; color: #263238; }
 #z2tsRoot QTabWidget::pane { border: none; }
 #z2tsRoot QTabBar::tab {
-    background: #e3eaf0; color: #546e7a; padding: 5px 9px; font-weight: bold;
+    background: #e3eaf0; color: #546e7a; padding: 5px 9px;
     border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 2px;
 }
 #z2tsRoot QTabBar::tab:selected { background: #00897b; color: #ffffff; }
@@ -130,6 +131,7 @@ class TrueSizeDockWidget(QDockWidget):
         self.world = WorldData.instance()
         self.manager = TrueSizeManager(canvas)
         self.manager.changed.connect(self._refresh_ghost_list)
+        self.osm = OsmDownloadManager(self)
         self.hud = DistortionHUD(canvas)
         self._tool_buttons: dict[str, QPushButton] = {}
         self._last_antipode: tuple[float, float] | None = None
@@ -140,6 +142,9 @@ class TrueSizeDockWidget(QDockWidget):
         self.setAllowedAreas(
             Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
         self._build_ui()
+        self.osm.started.connect(self._osm_started)
+        self.osm.finished.connect(self._osm_finished)
+        self.osm.failed.connect(self._osm_failed)
         self._fact_timer = QTimer(self)
         self._fact_timer.setInterval(30000)
         self._fact_timer.timeout.connect(self._next_fact)
@@ -173,14 +178,23 @@ class TrueSizeDockWidget(QDockWidget):
         root.addLayout(header)
 
         self.tabs = QTabWidget()
-        self.tabs.addTab(self._build_truesize_tab(), "🗺 True Size")
-        self.tabs.addTab(self._build_duel_tab(), "⚖ Duel")
-        self.tabs.addTab(self._build_truth_tab(), "🧭 Truth")
-        self.tabs.addTab(self._build_distortion_tab(), "🌐 Distort")
-        self.tabs.setTabToolTip(0, "Drag countries at their true size")
-        self.tabs.setTabToolTip(1, "Size Duel — which is really bigger?")
-        self.tabs.setTabToolTip(2, "Antipodes, great circles and fun units")
-        self.tabs.setTabToolTip(3, "Report card, Tissot circles and the live HUD")
+        # Plain-text labels on purpose: emoji glyphs vary wildly in width per
+        # platform/font and were truncating the tab captions.
+        self.tabs.addTab(self._build_truesize_tab(), "True Size")
+        self.tabs.addTab(self._build_duel_tab(), "Duel")
+        self.tabs.addTab(self._build_truth_tab(), "Truth")
+        self.tabs.addTab(self._build_distortion_tab(), "Distort")
+        self.tabs.setTabToolTip(0, "🗺 Drag countries at their true size")
+        self.tabs.setTabToolTip(1, "⚖ Size Duel — which is really bigger?")
+        self.tabs.setTabToolTip(2, "🧭 Antipodes, great circles and fun units")
+        self.tabs.setTabToolTip(3, "🌐 Report card, Tissot circles and the live HUD")
+        self.tabs.setUsesScrollButtons(False)
+        # Bold via the widget font, NOT the stylesheet: Qt measures tab widths
+        # with the widget font and only paints with the QSS one, so a QSS
+        # font-weight silently truncates the captions.
+        tab_font = self.tabs.tabBar().font()
+        tab_font.setBold(True)
+        self.tabs.tabBar().setFont(tab_font)
         root.addWidget(self.tabs, 1)
 
         footer = QHBoxLayout()
@@ -222,9 +236,30 @@ class TrueSizeDockWidget(QDockWidget):
         source_row = QHBoxLayout()
         source_row.addWidget(QLabel("Grab from:"))
         self.source_combo = QComboBox()
-        self.source_combo.addItems(["Built-in world countries", "Active polygon layer"])
+        self.source_combo.addItems([
+            "Built-in world countries",
+            "Active polygon layer",
+            "Downloaded OSM polygons",
+        ])
         source_row.addWidget(self.source_combo, 1)
         layout.addLayout(source_row)
+
+        osm_box = QGroupBox("OpenStreetMap polygons")
+        osm_layout = QVBoxLayout(osm_box)
+        osm_hint = QLabel(
+            "Zoom to a neighbourhood (max 6 × 6 km / 25 km²), then download "
+            "buildings, boundaries, land use, leisure, natural and water areas.")
+        osm_hint.setWordWrap(True)
+        osm_hint.setStyleSheet(_HINT_QSS)
+        osm_layout.addWidget(osm_hint)
+        self.osm_button = QPushButton("Download polygons in current view")
+        self.osm_button.clicked.connect(self._download_osm)
+        osm_layout.addWidget(self.osm_button)
+        self.osm_status = QLabel("Online data © OpenStreetMap contributors.")
+        self.osm_status.setWordWrap(True)
+        self.osm_status.setStyleSheet(_HINT_QSS)
+        osm_layout.addWidget(self.osm_status)
+        layout.addWidget(osm_box)
 
         pick = _tool_button("🖐  Pick up && drag")
         self._register_tool_button("truesize", pick)
@@ -400,7 +435,12 @@ class TrueSizeDockWidget(QDockWidget):
                 button.blockSignals(False)
 
     def truesize_source_mode(self) -> str:
-        return "world" if self.source_combo.currentIndex() == 0 else "active"
+        return ("world", "active", "osm")[self.source_combo.currentIndex()]
+
+    def truesize_source_layer(self):
+        if self.truesize_source_mode() == "osm":
+            return self.osm.layer()
+        return self.iface.activeLayer()
 
     # ── True Size slots ───────────────────────────────────────────────
 
@@ -411,9 +451,77 @@ class TrueSizeDockWidget(QDockWidget):
         if checked:
             layer = self.world.add_world_layer_to_project()
             if layer is None:
-                self.truesize_status.setText("Could not load the bundled world layer.")
+                self.world_checkbox.blockSignals(True)
+                self.world_checkbox.setChecked(False)
+                self.world_checkbox.blockSignals(False)
+                from ..tools.worlddata import DATA_PATH
+
+                self.truesize_status.setText(
+                    "Could not load the bundled world file — reinstall the plugin? "
+                    f"(expected at {DATA_PATH})")
+                return
+            self._zoom_to_world()
+            self.truesize_status.setText(
+                f"World layer added on top ({layer.featureCount()} countries). "
+                "Now press “Pick up & drag” and click a country.")
         else:
             self.world.remove_world_layer_from_project()
+            self.truesize_status.setText("World layer removed.")
+
+    def ensure_world_layer_visible(self) -> None:
+        """Called when the pick tool starts in world mode: make sure there is
+        something on the canvas to click, without touching the user's extent."""
+        if self.world.project_layer() is not None:
+            return
+        layer = self.world.add_world_layer_to_project()
+        if layer is not None:
+            self.world_checkbox.blockSignals(True)
+            self.world_checkbox.setChecked(True)
+            self.world_checkbox.blockSignals(False)
+            self.truesize_status.setText(
+                "Added the built-in world layer so you can see what you grab. "
+                "Click a country to pick it up.")
+
+    def _zoom_to_world(self) -> None:
+        canvas = self.iface.mapCanvas()
+        with suppress(Exception):
+            from qgis.core import QgsRectangle
+
+            from ..tools.support import from_wgs84
+
+            # Clamp to ±85° so Mercator-style canvases do not blow up at the poles.
+            extent = from_wgs84(canvas.mapSettings().destinationCrs()).transformBoundingBox(
+                QgsRectangle(-179.9, -85.0, 179.9, 85.0))
+            canvas.setExtent(extent)
+            canvas.refresh()
+
+    def _download_osm(self) -> None:
+        if self.osm.busy:
+            self.osm.cancel()
+            return
+        canvas = self.iface.mapCanvas()
+        try:
+            self.osm.download(canvas.extent(), canvas.mapSettings().destinationCrs())
+        except (RuntimeError, ValueError) as exc:
+            self._osm_failed(str(exc))
+
+    def _osm_started(self, summary: str) -> None:
+        self.osm_button.setText("Cancel download")
+        self.osm_status.setText(f"Downloading OSM polygons for {summary}…")
+
+    def _osm_finished(self, layer) -> None:
+        self.osm_button.setText("Refresh polygons in current view")
+        self.source_combo.setCurrentIndex(2)
+        self.iface.setActiveLayer(layer)
+        self.osm_status.setText(
+            f"Ready: {layer.featureCount()} polygons. Source switched to downloaded OSM; "
+            "press “Pick up & drag” and click a polygon.")
+
+    def _osm_failed(self, message: str) -> None:
+        self.osm_button.setText(
+            "Refresh polygons in current view" if self.osm.layer() is not None
+            else "Download polygons in current view")
+        self.osm_status.setText(message)
 
     def _refresh_ghost_list(self) -> None:
         self.ghost_list.clear()
@@ -562,6 +670,7 @@ class TrueSizeDockWidget(QDockWidget):
 
     def dispose(self) -> None:
         self._fact_timer.stop()
+        self.osm.cancel()
         self.hud.dispose()
         self.manager.dispose()
         self.world.remove_world_layer_from_project()

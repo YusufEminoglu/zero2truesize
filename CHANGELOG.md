@@ -3,6 +3,33 @@
 All notable changes to **02truesize — Map Truth Lab** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/).
 
+## [0.3.0] - 2026-07-20
+
+### Added
+- **Bounded OpenStreetMap polygon download** in the True Size tab. The current
+  view can supply administrative boundaries, buildings, land use, leisure,
+  natural and water polygons without QuickOSM or third-party Python packages.
+- Asynchronous Overpass requests through QGIS networking, cancellation,
+  neighbourhood-scale request limits, HTTP/rate-limit feedback, response
+  validation, and automatic conversion to a styled memory layer.
+- The successful OSM layer becomes a dedicated True Size source immediately,
+  ready for pick-up and drag; refresh replaces only the previous successful
+  plugin download.
+- Pure-Python tests for bbox safety limits and Overpass query construction.
+- [OSM_DATA_PLAN.md](OSM_DATA_PLAN.md), documenting scope, data flow, safety
+  constraints, attribution and deliberate non-goals.
+
+## [0.2.1] - 2026-07-20
+
+### Fixed
+- The built-in world layer now opens at the top of the layer tree, zooms to a
+  safe world extent, and is created automatically when the world pick tool is
+  started.
+- Added a raw-GeoJSON memory-layer fallback when OGR cannot open the bundled
+  country file, plus actionable missing-data feedback.
+- Tab captions no longer truncate because their bold font is now included in
+  Qt's width calculation; variable-width emoji moved to tooltips.
+
 ## [0.2.0] - 2026-07-20
 
 Icon redesign + GUI overhaul.

@@ -26,10 +26,29 @@ def _load_core():
     return (importlib.import_module("z2core.geomath"),
             importlib.import_module("z2core.funits"),
             importlib.import_module("z2core.quiz"),
-            importlib.import_module("z2core.distortion"))
+            importlib.import_module("z2core.distortion"),
+            importlib.import_module("z2core.osm"))
 
 
-geomath, funits, quiz, distortion = _load_core()
+geomath, funits, quiz, distortion, osm = _load_core()
+
+
+class TestOsm(unittest.TestCase):
+    def test_small_bbox_and_query(self):
+        metrics = osm.validate_bbox(41.000, 29.000, 41.020, 29.025)
+        self.assertLess(metrics["area_km2"], osm.MAX_AREA_KM2)
+        query = osm.overpass_query(41.000, 29.000, 41.020, 29.025)
+        self.assertIn('["boundary"="administrative"]', query)
+        self.assertIn('["building"]', query)
+        self.assertIn("out body qt;", query)
+
+    def test_bbox_limits(self):
+        with self.assertRaisesRegex(ValueError, "Zoom in"):
+            osm.validate_bbox(40.0, 28.0, 41.0, 29.0)
+        with self.assertRaisesRegex(ValueError, "85"):
+            osm.validate_bbox(85.1, 29.0, 85.2, 29.1)
+        with self.assertRaisesRegex(ValueError, "valid"):
+            osm.validate_bbox(41.0, 29.0, 40.0, 30.0)
 
 
 class TestGeomath(unittest.TestCase):
