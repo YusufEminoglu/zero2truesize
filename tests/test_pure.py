@@ -34,17 +34,15 @@ geomath, funits, quiz, distortion, admin_data = _load_core()
 
 
 class TestAdminData(unittest.TestCase):
-    def test_metadata_urls(self):
-        self.assertEqual(
-            admin_data.metadata_url("tur", "ADM0"),
-            "https://www.geoboundaries.org/api/current/gbOpen/TUR/ADM0/")
-        self.assertTrue(admin_data.metadata_url("TUR", "ADM1").endswith("/TUR/ADM1/"))
+    def test_request_validation(self):
+        self.assertEqual(admin_data.validate_request("tur", "ADM0"), ("TUR", "ADM0"))
+        self.assertEqual(admin_data.validate_request("TUR", "ADM1"), ("TUR", "ADM1"))
 
     def test_url_validation(self):
         with self.assertRaisesRegex(ValueError, "three-letter"):
-            admin_data.metadata_url("TR", "ADM0")
+            admin_data.validate_request("TR", "ADM0")
         with self.assertRaisesRegex(ValueError, "level"):
-            admin_data.metadata_url("TUR", "ADM2")
+            admin_data.validate_request("TUR", "ADM2")
 
 
 class TestGeomath(unittest.TestCase):

@@ -91,6 +91,17 @@ class WorldData:
         name = feature.attribute("name")
         return str(name) if name else None
 
+    def country_feature_by_iso(self, iso3: str) -> QgsFeature | None:
+        """Return a bundled country by ISO alpha-3 (including Kosovo's XKX alias)."""
+        layer = self.layer()
+        if layer is None:
+            return None
+        wanted = "-99" if iso3 == "XKX" else str(iso3)
+        for feature in layer.getFeatures():
+            if str(feature.attribute("iso") or "") == wanted:
+                return QgsFeature(feature)
+        return None
+
     # ── pure record view (for the quiz) ───────────────────────────────
 
     def records(self) -> list[dict]:
@@ -104,9 +115,12 @@ class WorldData:
                 if not props.get("name"):
                     continue
                 ring = decimate_ring(unwrap_ring(largest_outer_ring(geometry)), 350)
+                iso = str(props.get("iso") or "")
+                if props.get("name") == "Kosovo" and iso == "-99":
+                    iso = "XKX"
                 records.append({
                     "name": str(props["name"]),
-                    "iso": str(props.get("iso") or ""),
+                    "iso": iso,
                     "area_km2": float(props.get("area_km2") or 0.0),
                     "lat": float(props.get("lat") or 0.0),
                     "lon": float(props.get("lon") or 0.0),

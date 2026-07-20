@@ -25,8 +25,8 @@
 
 - **True Size drag** — grab any country (bundled offline world layer) *or any polygon from your own layers* and drag it across the map; the outline is re-projected on the fly through an equal-area azimuthal projection centred under your cursor, so it **always covers its true ground area**. Rotate with `R`/`E`, drop as many coloured ghosts as you like, export them as a layer.
 - **Administrative boundary vectors** — choose a country and download its ADM0
-  country boundary or ADM1 first-level units directly from the open
-  geoBoundaries catalogue; the result becomes a ready-to-drag memory layer.
+  country boundary from the bundled world data or ADM1 first-level units from
+  Natural Earth's official 10m states/provinces archive.
 - **Size Duel** — a built-in game: two countries drawn exactly the way a web-Mercator map draws them; guess which is *really* bigger. Score, streaks, and a per-round confession of how much the projection lied.
 - **Projection honesty report card** — one click grades the **current project CRS**: separate marks for area and shape honesty (A+ to F), per-latitude inflation figures and a plain-language verdict.
 - **Tissot indicatrix circles** — generate the classic distortion diagnostic as a styled memory layer (radius and spacing configurable): equal circles on the ground, telling shapes on the map.
@@ -36,7 +36,7 @@
 - **Fun units** — accurate geodesic measurements first, then the fun: areas in football pitches, Central Parks and **Belgiums**; distances in marathons, Bosphorus bridges and fractions of the way to the Moon.
 - **Offline-first, dependency-free** — the generalized [Natural Earth](https://www.naturalearthdata.com)
   country workflow, geodesy and map tools work fully offline. Optional local
-  administrative vectors use the built-in geoBoundaries downloader; no external
+  ADM1 vectors use Natural Earth's official public-domain archive; no external
   QGIS or Python dependency is required.
 
 ## 🚀 Installation
@@ -60,12 +60,16 @@ then press **Download selected administrative boundaries**. The source switches
 to the downloaded layer automatically. Data stays in memory unless you save it
 with QGIS **Export > Save Features As**.
 
+Natural Earth's 14.2 MB ADM1 archive is downloaded once per open panel and
+reused for later country selections. A few tiny countries and territories do
+not have ADM1 coverage; the panel then suggests ADM0.
+
 ## ⚙️ Reference
 
 | Tab | Tool | What it does |
 |-----|------|--------------|
 | True Size | Pick up & drag | Equal-area re-centred ghost outlines of countries, active-layer polygons or downloaded administrative units; rotation, multi-ghost, export to layer |
-| True Size | Download boundaries | Country-selected ADM0/ADM1 vector download through geoBoundaries gbOpen |
+| True Size | Download boundaries | Offline bundled ADM0 or country-filtered Natural Earth 10m ADM1 vectors |
 | Size Duel | — | Mercator-drawn silhouettes, guess the truly bigger one; score, streak and best-streak memory |
 | Truth Tools | Antipode tunnel | Click → antipode marker, country-or-ocean verdict, fly-to |
 | Truth Tools | Great circle vs map line | Geodesic path vs straight map line with both ground lengths and the difference |
@@ -91,6 +95,5 @@ with QGIS **Export > Save Features As**.
 GPL-3.0 © [Yusuf Eminoğlu](https://github.com/YusufEminoglu) — bug reports and feature requests welcome in [Issues](https://github.com/YusufEminoglu/zero2truesize/issues).
 
 World outlines derived from QGIS's bundled Natural Earth data (public domain). Inspired by [thetruesize.com](https://thetruesize.com).
-Optional administrative vectors come from
-[geoBoundaries gbOpen](https://www.geoboundaries.org/) with source/year/license
-metadata preserved on the layer; attribution is required.
+ADM1 vectors come from [Natural Earth Admin 1 — States, Provinces](https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-1-states-provinces/)
+version 5.1.1 (public domain).

@@ -131,7 +131,7 @@ class TrueSizeDockWidget(QDockWidget):
         self.world = WorldData.instance()
         self.manager = TrueSizeManager(canvas)
         self.manager.changed.connect(self._refresh_ghost_list)
-        self.admin = AdminDownloadManager(self)
+        self.admin = AdminDownloadManager(self.world, self)
         self.hud = DistortionHUD(canvas)
         self._tool_buttons: dict[str, QPushButton] = {}
         self._last_antipode: tuple[float, float] | None = None
@@ -283,8 +283,8 @@ class TrueSizeDockWidget(QDockWidget):
         self.admin_button.clicked.connect(self._download_admin)
         admin_layout.addWidget(self.admin_button)
         self.admin_status = QLabel(
-            "Vector data: geoBoundaries gbOpen. Source and license metadata "
-            "are stored on the downloaded layer.")
+            "ADM0 uses the bundled world data. ADM1 downloads Natural Earth "
+            "10m states/provinces once per panel session (public domain).")
         self.admin_status.setWordWrap(True)
         self.admin_status.setStyleSheet(_HINT_QSS)
         admin_layout.addWidget(self.admin_status)

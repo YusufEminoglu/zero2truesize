@@ -3,6 +3,18 @@
 All notable changes to **02truesize — Map Truth Lab** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/).
 
+## [0.3.2] - 2026-07-20
+
+### Fixed
+- Removed the stale geoBoundaries GitHub/LFS links that returned HTTP 404/500
+  even while their catalogue entries were valid.
+- ADM0 now comes instantly from the bundled 238-country world dataset; ADM1 is
+  filtered from Natural Earth's official 10m states/provinces vector archive.
+- The 14.2 MB global ADM1 archive is downloaded at most once per panel session
+  and then reused when another country is selected.
+- Missing ADM1 coverage now produces a clear suggestion to use ADM0.
+- Mapped Kosovo consistently between the bundled data and Natural Earth ADM1.
+
 ## [0.3.1] - 2026-07-20
 
 ### Fixed
