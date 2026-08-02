@@ -3,6 +3,20 @@
 All notable changes to **02truesize — Map Truth Lab** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/).
 
+## [0.3.3] - 2026-08-03
+
+### Changed
+- Replace the hardcoded light-only stylesheet with palette-derived colour tokens so
+  the entire dock stays readable under QGIS light, dark and high-contrast themes.
+  The dock now listens for PaletteChange and re-applies the theme automatically.
+- The "Pick up & drag" button is now a large primary action visually separated from
+  the other tool buttons — the true-size drag is the heart of the plugin.
+- Per-tool card accent colours are automatically adjusted for dark and light themes.
+
+### Added
+- `dialogs/theme.py` with WCAG contrast-ratio checks, palette-aware colour tokens,
+  per-tool accent colours, and `apply_adaptive_theme()` entry point.
+
 ## [0.3.2] - 2026-07-20
 
 ### Fixed
