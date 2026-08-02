@@ -10,8 +10,8 @@ from __future__ import annotations
 import os
 from contextlib import suppress
 
-from qgis.PyQt.QtCore import QSize, Qt, QTimer, pyqtSignal
-from qgis.PyQt.QtGui import QColor, QIcon, QPixmap
+from qgis.PyQt.QtCore import QEvent, QSize, Qt, QTimer, pyqtSignal
+from qgis.PyQt.QtGui import QColor, QIcon, QPalette, QPixmap
 from qgis.PyQt.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -39,70 +39,27 @@ from ..tools.tissot import DistortionHUD, crs_report_card, make_tissot_layer
 from ..tools.truesize import TrueSizeManager
 from ..tools.worlddata import WorldData
 from ..tools.admin_download import AdminDownloadManager
+from .theme import apply_adaptive_theme, card_accent, dock_color_tokens
 
 PLUGIN_TITLE = "02truesize — Map Truth Lab"
 
-_HINT_QSS = "color: #78909c; font-size: 8pt; background: transparent;"
-
-# The dock pins its own light design system so it reads identically under the
-# QGIS 3 light and QGIS 4 dark application themes (02viz 0.9.1 lesson: the
-# dark palette bleeds into every control you do not colour explicitly).
-_DOCK_QSS = """
-#z2tsRoot { background: #f6f9fb; }
-#z2tsRoot QLabel { background: transparent; color: #263238; }
-#z2tsRoot QTabWidget::pane { border: none; }
-#z2tsRoot QTabBar::tab {
-    background: #e3eaf0; color: #546e7a; padding: 5px 9px;
-    border-top-left-radius: 6px; border-top-right-radius: 6px; margin-right: 2px;
-}
-#z2tsRoot QTabBar::tab:selected { background: #00897b; color: #ffffff; }
-#z2tsRoot QGroupBox {
-    background: #ffffff; border: 1px solid #d7e0e7; border-radius: 8px;
-    margin-top: 10px; padding: 10px 6px 6px 6px; font-weight: bold; color: #37474f;
-}
-#z2tsRoot QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }
-#z2tsRoot QPushButton {
-    background: #ffffff; border: 1px solid #cfd8dc; border-radius: 6px;
-    padding: 5px 10px; color: #37474f;
-}
-#z2tsRoot QPushButton:hover { background: #e0f2f1; border-color: #80cbc4; }
-#z2tsRoot QPushButton:checked {
-    background: #00897b; border-color: #00695c; color: #ffffff; font-weight: bold;
-}
-#z2tsRoot QPushButton:disabled { color: #b0bec5; background: #f1f4f6; }
-#z2tsRoot QPushButton[class="tool"] { text-align: left; padding: 8px 12px; }
-#z2tsRoot QPushButton[class="primary"] {
-    background: #00897b; border-color: #00695c; color: #ffffff; font-weight: bold;
-}
-#z2tsRoot QPushButton[class="primary"]:hover { background: #00796b; }
-#z2tsRoot QComboBox {
-    background: #ffffff; border: 1px solid #cfd8dc; border-radius: 5px;
-    padding: 3px 8px; color: #263238;
-}
-#z2tsRoot QComboBox QAbstractItemView {
-    background: #ffffff; color: #263238;
-    selection-background-color: #b2dfdb; selection-color: #004d40;
-}
-#z2tsRoot QListWidget {
-    background: #ffffff; border: 1px solid #d7e0e7; border-radius: 6px; color: #263238;
-}
-#z2tsRoot QListWidget::item { padding: 3px 4px; }
-#z2tsRoot QListWidget::item:selected { background: #b2dfdb; color: #004d40; }
-#z2tsRoot QCheckBox { color: #37474f; background: transparent; }
-#z2tsRoot QScrollArea { background: transparent; border: none; }
-#z2tsRoot QScrollArea > QWidget > QWidget { background: transparent; }
-"""
-
+IDLE_STYLE = "font-size: 8pt; background: transparent;"
 _GRADE_COLORS = {
     "A+": "#1b5e20", "A": "#2e7d32", "B": "#558b2f",
     "C": "#f9a825", "D": "#ef6c00", "E": "#d84315", "F": "#b71c1c",
 }
 
 
-def _card_qss(accent: str) -> str:
-    return ("QLabel { background: #ffffff; border: 1px solid #d7e0e7;"
+def _card_qss(tool_key: str = "", fallback: str = "#00897b") -> str:
+    """Build a palette-aware card style.  *tool_key* selects a per-tool accent
+    that is automatically adjusted for dark/light; *fallback* is used when the
+    key is unknown."""
+    t = dock_color_tokens()
+    dark = QApplication.palette().color(QPalette.ColorRole.Window).lightness() < 128
+    accent = card_accent(tool_key, dark) if tool_key else fallback
+    return (f"QLabel {{ background: {t['card']}; border: 1px solid {t['border']};"
             f" border-left: 4px solid {accent}; border-radius: 6px;"
-            " padding: 6px 8px; color: #263238; }")
+            f" padding: 6px 8px; color: {t['text']}; }}")
 
 
 def _grade_chip(grade: str) -> str:
@@ -160,7 +117,6 @@ class TrueSizeDockWidget(QDockWidget):
         container = QWidget()
         container.setObjectName("z2tsRoot")
         container.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        container.setStyleSheet(_DOCK_QSS)
         container.setMinimumWidth(330)
         root = QVBoxLayout(container)
         root.setContentsMargins(8, 8, 8, 8)
@@ -203,16 +159,17 @@ class TrueSizeDockWidget(QDockWidget):
         footer = QHBoxLayout()
         self.fact_label = QLabel("")
         self.fact_label.setWordWrap(True)
-        self.fact_label.setStyleSheet("color: #607d8b; font-style: italic; font-size: 8pt;")
+        self.fact_label.setStyleSheet(IDLE_STYLE + " font-style: italic;")
         footer.addWidget(self.fact_label, 1)
         about = QPushButton("About")
         about.setFlat(True)
-        about.setStyleSheet("color: #607d8b; font-size: 8pt;")
+        about.setStyleSheet(IDLE_STYLE)
         about.clicked.connect(self._show_about)
         footer.addWidget(about, 0, Qt.AlignmentFlag.AlignTop)
         root.addLayout(footer)
 
         self.setWidget(container)
+        self._apply_theme()
 
     def _wrap_scroll(self, inner: QWidget) -> QScrollArea:
         scroll = QScrollArea()
@@ -255,7 +212,7 @@ class TrueSizeDockWidget(QDockWidget):
             "ISO 3166-2 first-level administrative units. The canvas extent is "
             "not used for the query.")
         admin_hint.setWordWrap(True)
-        admin_hint.setStyleSheet(_HINT_QSS)
+        admin_hint.setStyleSheet(IDLE_STYLE)
         admin_layout.addWidget(admin_hint)
 
         country_row = QHBoxLayout()
@@ -286,22 +243,34 @@ class TrueSizeDockWidget(QDockWidget):
             "ADM0 uses the bundled world data. ADM1 downloads Natural Earth "
             "10m states/provinces once per panel session (public domain).")
         self.admin_status.setWordWrap(True)
-        self.admin_status.setStyleSheet(_HINT_QSS)
+        self.admin_status.setStyleSheet(IDLE_STYLE)
         admin_layout.addWidget(self.admin_status)
         layout.addWidget(admin_box)
 
-        pick = _tool_button("🖐  Pick up && drag")
+        # ── Primary action: the drag tool is the heart of the plugin ──
+        drag_frame = QWidget()
+        drag_frame.setObjectName("dragFrame")
+        drag_layout = QVBoxLayout(drag_frame)
+        drag_layout.setContentsMargins(0, 4, 0, 4)
+        drag_layout.setSpacing(4)
+
+        pick = QPushButton("🖐  Pick up & drag  —  click a country and move it")
+        pick.setCheckable(True)
+        pick.setProperty("class", "primary-drag")
+        pick.setToolTip("Grab any country, polygon or administrative boundary and drag it — "
+                        "the outline keeps its true ground area wherever it goes")
         self._register_tool_button("truesize", pick)
-        layout.addWidget(pick)
+        drag_layout.addWidget(pick)
 
         hint = QLabel("Click grabs · click again drops · R / E rotates · right-click cancels")
         hint.setWordWrap(True)
-        hint.setStyleSheet(_HINT_QSS)
-        layout.addWidget(hint)
+        hint.setStyleSheet(IDLE_STYLE)
+        drag_layout.addWidget(hint)
+        layout.addWidget(drag_frame)
 
         self.truesize_status = QLabel("Ready when you are.")
         self.truesize_status.setWordWrap(True)
-        self.truesize_status.setStyleSheet(_card_qss("#00897b"))
+        self.truesize_status.setStyleSheet(_card_qss("truesize"))
         layout.addWidget(self.truesize_status)
 
         self.ghost_list = QListWidget()
@@ -342,7 +311,7 @@ class TrueSizeDockWidget(QDockWidget):
         self.antipode_result = QLabel("Where would you surface if you dug straight through "
                                       "the Earth? Click the map to find out.")
         self.antipode_result.setWordWrap(True)
-        self.antipode_result.setStyleSheet(_card_qss("#3949ab"))
+        self.antipode_result.setStyleSheet(_card_qss("antipode"))
         antipode_layout.addWidget(self.antipode_result)
         self.fly_button = QPushButton("Fly to the antipode")
         self.fly_button.setEnabled(False)
@@ -358,7 +327,7 @@ class TrueSizeDockWidget(QDockWidget):
         self.gc_result = QLabel("The shortest path on the globe is rarely the straight line "
                                 "on the map. Click two points to see the difference.")
         self.gc_result.setWordWrap(True)
-        self.gc_result.setStyleSheet(_card_qss("#1565c0"))
+        self.gc_result.setStyleSheet(_card_qss("greatcircle"))
         gc_layout.addWidget(self.gc_result)
         layout.addWidget(gc_box)
 
@@ -376,7 +345,7 @@ class TrueSizeDockWidget(QDockWidget):
                                     "to get its area in Belgiums.")
         self.funits_result.setWordWrap(True)
         self.funits_result.setTextFormat(Qt.TextFormat.RichText)
-        self.funits_result.setStyleSheet(_card_qss("#2e7d32"))
+        self.funits_result.setStyleSheet(_card_qss("fundist"))
         fun_layout.addWidget(self.funits_result)
         copy_button = QPushButton("Copy result")
         copy_button.clicked.connect(self._copy_funits)
@@ -399,7 +368,7 @@ class TrueSizeDockWidget(QDockWidget):
         self.card_result = QLabel("Every flat map lies somehow. Find out how yours does.")
         self.card_result.setWordWrap(True)
         self.card_result.setTextFormat(Qt.TextFormat.RichText)
-        self.card_result.setStyleSheet(_card_qss("#f4511e"))
+        self.card_result.setStyleSheet(_card_qss(fallback="#f4511e"))
         card_layout.addWidget(self.card_result)
         layout.addWidget(card_box)
 
@@ -408,7 +377,7 @@ class TrueSizeDockWidget(QDockWidget):
         explain = QLabel("Equal circles on the ground; whatever the map turns them into "
                          "is the distortion, made visible.")
         explain.setWordWrap(True)
-        explain.setStyleSheet(_HINT_QSS)
+        explain.setStyleSheet(IDLE_STYLE)
         tissot_layout.addWidget(explain)
         combo_row = QHBoxLayout()
         combo_row.addWidget(QLabel("Radius:"))
@@ -429,7 +398,7 @@ class TrueSizeDockWidget(QDockWidget):
         tissot_layout.addWidget(tissot_button)
         self.tissot_status = QLabel("")
         self.tissot_status.setWordWrap(True)
-        self.tissot_status.setStyleSheet(_HINT_QSS)
+        self.tissot_status.setStyleSheet(IDLE_STYLE)
         tissot_layout.addWidget(self.tissot_status)
         layout.addWidget(tissot_box)
 
@@ -709,6 +678,24 @@ class TrueSizeDockWidget(QDockWidget):
             "github.com/YusufEminoglu/zero2truesize</a></p>")
 
     # ── lifecycle ─────────────────────────────────────────────────────
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() in (
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+        ):
+            self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        root = self.widget()
+        if root is None or getattr(self, "_theme_refreshing", False):
+            return
+        self._theme_refreshing = True
+        try:
+            apply_adaptive_theme(root)
+        finally:
+            self._theme_refreshing = False
 
     def dispose(self) -> None:
         self._fact_timer.stop()
