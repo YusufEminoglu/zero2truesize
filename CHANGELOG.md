@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.5] - 2026-08-07
+
+- Add floating Save as PDF button to reference manual
+
 All notable changes to **02truesize — Map Truth Lab** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versioning: [SemVer](https://semver.org/).
 
