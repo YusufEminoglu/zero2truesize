@@ -7,6 +7,7 @@
 **Drag countries anywhere to compare their true size, grade your projection's honesty, play a Mercator-lie guessing duel, find antipodes, draw great circles and measure in playful units.**
 
 [![QGIS](https://img.shields.io/badge/QGIS-3.28%2B-93b023?logo=qgis&logoColor=white)](https://plugins.qgis.org/plugins/zero2truesize/)
+[![Documentation](https://img.shields.io/badge/📖_Reference_Manual-13a0a0)](https://yusufeminoglu.github.io/zero2truesize/)
 [![Version](https://img.shields.io/github/v/tag/YusufEminoglu/zero2truesize?label=version&color=blue)](https://github.com/YusufEminoglu/zero2truesize/releases)
 [![License](https://img.shields.io/badge/license-GPL--3.0-orange)](LICENSE)
 [![QGIS Plugin Hub](https://img.shields.io/badge/QGIS%20Hub-install-589632?logo=qgis&logoColor=white)](https://plugins.qgis.org/plugins/zero2truesize/)
