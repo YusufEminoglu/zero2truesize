@@ -18,6 +18,11 @@
 
 ---
 
+## 📖 Documentation
+
+**[Comprehensive Academic Reference Manual](https://yusufeminoglu.github.io/zero2truesize/)** — complete documentation of every feature, parameter, and workflow. Hosted on GitHub Pages.
+
+
 ## Why 02truesize?
 
 **Every flat map lies — this plugin shows you how, playfully.** The everyday web map (Mercator) inflates whatever sits far from the equator: Greenland is drawn like a continent, yet Africa is about 14 times larger. 02truesize brings the much-loved [thetruesize.com](https://thetruesize.com) idea natively into QGIS and goes further: a drag-anywhere true-size comparator, a guessing game, a projection report card, Tissot circles, antipodes, great circles and measurements in Belgiums. Built for teaching projections, scale and spatial reasoning — and for having fun with the map you stare at every day.
