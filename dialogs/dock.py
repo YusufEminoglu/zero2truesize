@@ -21,6 +21,7 @@ from qgis.PyQt.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QListWidget,
     QListWidgetItem,
@@ -734,17 +735,32 @@ class TrueSizeDockWidget(QDockWidget):
         dialog.exec_()
 
     def _export_truth_lab(self) -> None:
-        current_ghost = self.manager.ghosts[0] if self.manager.ghosts else None
+        ghosts = self.manager.ghosts
         outline = []
         name = "Greenland"
         area = 2166086.0
-        if current_ghost is not None:
-            name = getattr(current_ghost, "name", "Country")
-            area = getattr(current_ghost, "area_km2", 100000.0)
-            if hasattr(current_ghost, "wgs84_ring") and current_ghost.wgs84_ring:
-                outline = current_ghost.wgs84_ring
+
+        if ghosts:
+            if len(ghosts) == 1:
+                chosen_ghost = ghosts[0]
             else:
-                geom = getattr(current_ghost, "current_wgs84", None) or getattr(current_ghost, "geom_wgs84", None)
+                ghost_labels = [f"{g.name} ({g.area_km2:,.0f} km² at {g.dst_anchor.y():.1f}°)" for g in ghosts]
+                chosen_label, ok = QInputDialog.getItem(
+                    self, "Select Country Ghost for Report",
+                    "Choose which active canvas ghost to export into the Map Truth Lab HTML report:",
+                    ghost_labels, 0, False
+                )
+                if not ok or not chosen_label:
+                    return
+                idx = ghost_labels.index(chosen_label)
+                chosen_ghost = ghosts[idx]
+
+            name = getattr(chosen_ghost, "name", "Country")
+            area = getattr(chosen_ghost, "area_km2", 100000.0)
+            if hasattr(chosen_ghost, "wgs84_ring") and chosen_ghost.wgs84_ring:
+                outline = chosen_ghost.wgs84_ring
+            else:
+                geom = getattr(chosen_ghost, "current_wgs84", None) or getattr(chosen_ghost, "geom_wgs84", None)
                 if geom and not geom.isNull():
                     with suppress(Exception):
                         if geom.isMultipart():
@@ -756,10 +772,28 @@ class TrueSizeDockWidget(QDockWidget):
                             if poly and poly[0]:
                                 outline = [[float(p.x()), float(p.y())] for p in poly[0]]
         else:
-            records = self.world.records()
-            rec = records[0] if records else {"name": "Greenland", "area_km2": 2166086.0, "ring": []}
-            name = rec.get("name", "Greenland")
-            area = rec.get("area_km2", 2166086.0)
+            records = sorted(self.world.records(), key=lambda r: r["name"])
+            country_names = [r["name"] for r in records if len(r.get("ring") or []) >= 3]
+            if not country_names:
+                QMessageBox.warning(self, PLUGIN_TITLE, "No country geometries available.")
+                return
+
+            default_name = self.admin_country.currentText() if hasattr(self, "admin_country") and self.admin_country.currentText() in country_names else "Greenland"
+            default_idx = country_names.index(default_name) if default_name in country_names else 0
+
+            chosen_name, ok = QInputDialog.getItem(
+                self, "Select Country for Truth Lab Report",
+                "No ghosts on canvas. Choose a country to generate the interactive Map Truth Lab HTML report for:",
+                country_names, default_idx, False
+            )
+            if not ok or not chosen_name:
+                return
+
+            rec = next((r for r in records if r["name"] == chosen_name), None)
+            if not rec:
+                return
+            name = rec["name"]
+            area = rec.get("area_km2", 100000.0)
             outline = rec.get("ring", [])
 
         country_data = {
