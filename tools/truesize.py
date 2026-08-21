@@ -132,6 +132,24 @@ class Ghost:
         self.current_wgs84 = QgsGeometry(geom_wgs84)
         self.looks = 1.0
 
+    @property
+    def center_lat(self) -> float:
+        """Latitude of the ghost's anchor point."""
+        return float(self.dst_anchor.y())
+
+    @property
+    def wgs84_ring(self) -> list[list[float]]:
+        """List of [lon, lat] coordinates representing the polygon outline."""
+        geom = self.current_wgs84 if (self.current_wgs84 and not self.current_wgs84.isNull()) else self.geom_wgs84
+        if geom and not geom.isNull():
+            poly = geom.asPolygon()
+            if poly and len(poly) > 0 and len(poly[0]) > 0:
+                return [[p.x(), p.y()] for p in poly[0]]
+            mpoly = geom.asMultiPolygon()
+            if mpoly and len(mpoly) > 0 and len(mpoly[0]) > 0 and len(mpoly[0][0]) > 0:
+                return [[p.x(), p.y()] for p in mpoly[0][0]]
+        return []
+
     def label(self) -> str:
         text = f"{self.name} — true size {format_area_km2(self.area_km2)}"
         if self.looks >= 1.05:

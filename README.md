@@ -36,7 +36,7 @@
 - **Administrative boundary vectors** — choose a country and download its ADM0
   country boundary from the bundled world data or ADM1 first-level units from
   Natural Earth's official 10m states/provinces archive.
-- **Size Duel** — a built-in game: two countries drawn exactly the way a web-Mercator map draws them; guess which is *really* bigger. Score, streaks, and a per-round confession of how much the projection lied.
+- **Size Duel** — a built-in game: 4 countries are drawn in a 2x2 grid exactly the way a web-Mercator map draws them; guess which is *really* the biggest by true ground area. Score, streaks, and a per-round confession of how much the projection lied.
 - **Projection honesty report card** — one click grades the **current project CRS**: separate marks for area and shape honesty (A+ to F), per-latitude inflation figures and a plain-language verdict.
 - **Tissot indicatrix circles** — generate the classic distortion diagnostic as a styled memory layer (radius and spacing configurable): equal circles on the ground, telling shapes on the map.
 - **Live distortion HUD** — a small readout pinned to the canvas showing how stretched areas and shapes are right where you are looking, updating as you pan.

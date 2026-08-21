@@ -59,7 +59,7 @@ th{background:var(--code-bg);font-weight:600}
 </aside>
 <main id="main">
 <h1>02truesize &mdash; Map Truth Lab</h1>
-<p>Every flat map lies. Interactive map-comparison and geodetic education tools &bull; v0.4.0</p>
+<p>Every flat map lies. Interactive map-comparison and geodetic education tools &bull; v0.4.1</p>
 <div class="video-embed">
   <iframe src="https://www.youtube-nocookie.com/embed/BwzFg5R1Ibc" title="02truesize &mdash; video walkthrough" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
 </div>
@@ -67,7 +67,7 @@ th{background:var(--code-bg);font-weight:600}
 
 <h2 id="overview">1. Overview</h2>
 <p>02truesize brings the true-size map comparison concept into QGIS and extends it with geodetic education tools. The core premise: Web Mercator (EPSG:3857), used by virtually all online maps, grossly inflates areas away from the equator. Greenland appears continent-sized but Africa is roughly 14 times larger. The plugin lets users experientially see this by dragging country outlines that are re-projected through an equal-area projection in real time.</p>
-<p>The plugin is organised as a four-tab dock: <strong>True Size</strong> (drag-and-drop country comparison, Area Ratio Matrix, HTML Map Truth Lab exporter), <strong>Duel</strong> (size-comparison quiz game), <strong>Truth</strong> (antipode, great circle, and fun-unit measurement tools), and <strong>Distort</strong> (Projection Recommender & Optimizer, projection report cards, Tissot indicatrices, and live distortion HUD).</p>
+<p>The plugin is organised as a four-tab dock: <strong>True Size</strong> (drag-and-drop country comparison, Area Ratio Matrix, HTML Map Truth Lab exporter), <strong>Duel</strong> (4-choice size-comparison quiz game), <strong>Truth</strong> (antipode, great circle, and fun-unit measurement tools), and <strong>Distort</strong> (Projection Recommender & Optimizer, projection report cards, Tissot indicatrices, and live distortion HUD).</p>
 
 <h2 id="truesize">2. True Size Comparison Tool</h2>
 <div class="card">
@@ -85,8 +85,8 @@ th{background:var(--code-bg);font-weight:600}
 
 <h2 id="duel">3. Size Duel Quiz</h2>
 <div class="card">
-  <h4>Mercator-Deception Quiz Game</h4>
-  <p>Two countries are shown as Mercator-projected silhouette cards drawn at the same true scale (computed via <code>mercator_xy()</code>, then centred and scaled to a common metres-per-pixel factor). The player guesses which country is truly larger. The question engine has a <strong>strong taste for deceptive pairs</strong> where Mercator draws the actually-smaller country as visually larger. Falls back to close-call pairs, then to any valid pair. Max true ratio between pair countries: 8.0&times;. Tracks current round, score, streak, and best streak (persisted across sessions).</p>
+  <h4>Mercator-Deception 4-Choice Quiz Game</h4>
+  <p>Four countries are shown as Mercator-projected silhouette cards in a 2x2 grid drawn at the same true scale (computed via <code>mercator_xy()</code>, then centred and scaled to a common metres-per-pixel factor). The player guesses which single country is truly the largest in ground area. The question engine has a <strong>strong taste for deceptive sets</strong> where Mercator draws an actually-smaller high-latitude country as visually bigger than the true ground-area winner. Tracks current round, score, streak, and best streak (persisted across sessions).</p>
 </div>
 
 <h2 id="truth">4. Truth Tools</h2>

@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Size Duel: which country is REALLY bigger?
+"""Size Duel: which country is REALLY biggest?
 
-Pure-Python game engine. Countries are shown the way a web-Mercator map
-would draw them (areas inflated by sec^2 of latitude), the player guesses
-which is truly larger, and the engine confesses how much the projection
-lied. Pair selection has a taste for deception: rounds where the visually
-bigger country is actually the smaller one.
+Pure-Python 4-choice game engine. Four countries are shown exactly the way
+a web-Mercator map would draw them (areas inflated by sec^2 of latitude).
+The player picks which one is truly the largest in ground area. The engine
+favors deceptive sets where a smaller country is drawn visually bigger
+than the true winner due to polar Mercator inflation.
 """
 from __future__ import annotations
 
 from .geomath import LCG, mercator_areal_inflation
 
 MIN_AREA_KM2 = 15000.0
-MAX_TRUE_RATIO = 8.0
+CHOICE_KEYS = ("a", "b", "c", "d")
 
 
 def visual_area_km2(country: dict) -> float:
@@ -21,7 +21,7 @@ def visual_area_km2(country: dict) -> float:
 
 
 class SizeDuel:
-    """Rounds of two countries; ``guess`` scores and keeps streaks.
+    """Rounds of 4 countries; ``guess`` scores and keeps streaks.
 
     ``countries``: iterable of dicts with at least name, area_km2, lat.
     """
@@ -34,64 +34,57 @@ class SizeDuel:
         self.correct_count = 0
         self.streak = 0
         self.best_streak = int(best_streak)
-        self._current: dict | None = None
+        self._current: dict[str, dict] | None = None
 
     # ── round generation ──────────────────────────────────────────────
 
-    def _random_pair(self) -> tuple[dict, dict]:
-        first = self._rng.choice(self._pool)
-        second = self._rng.choice(self._pool)
-        while second["name"] == first["name"]:
-            second = self._rng.choice(self._pool)
-        return first, second
+    def _random_quad(self) -> list[dict]:
+        chosen: list[dict] = []
+        names: set[str] = set()
+        while len(chosen) < 4:
+            c = self._rng.choice(self._pool)
+            if c["name"] not in names:
+                names.add(c["name"])
+                chosen.append(c)
+        return chosen
 
     @staticmethod
-    def _is_deceptive(a: dict, b: dict) -> bool:
-        true_bigger_is_a = float(a["area_km2"]) > float(b["area_km2"])
-        visual_bigger_is_a = visual_area_km2(a) > visual_area_km2(b)
-        return true_bigger_is_a != visual_bigger_is_a
+    def _is_deceptive_quad(items: list[dict]) -> bool:
+        """True if the visually largest country on Mercator is NOT the actual ground area winner."""
+        true_winner = max(items, key=lambda c: float(c["area_km2"]))
+        visual_winner = max(items, key=lambda c: visual_area_km2(c))
+        return true_winner["name"] != visual_winner["name"]
 
-    @staticmethod
-    def _ratio(a: dict, b: dict) -> float:
-        big = max(float(a["area_km2"]), float(b["area_km2"]))
-        small = max(1.0, min(float(a["area_km2"]), float(b["area_km2"])))
-        return big / small
-
-    def next_round(self) -> dict | None:
-        if len(self._pool) < 2:
+    def next_round(self) -> dict[str, dict] | None:
+        if len(self._pool) < 4:
             return None
-        pair = None
-        # First taste: a deceptive pair (Mercator points at the wrong winner).
-        for _ in range(300):
-            a, b = self._random_pair()
-            if self._ratio(a, b) <= MAX_TRUE_RATIO and self._is_deceptive(a, b):
-                pair = (a, b)
+        quad = None
+        # Preference: a deceptive set where Mercator visually points at a false winner.
+        for _ in range(400):
+            cand = self._random_quad()
+            if self._is_deceptive_quad(cand):
+                quad = cand
                 break
-        if pair is None:
-            # Fall back to a close call, then to anything sane.
-            for _ in range(300):
-                a, b = self._random_pair()
-                if self._ratio(a, b) <= 2.5:
-                    pair = (a, b)
-                    break
-        if pair is None:
-            pair = self._random_pair()
-        a, b = pair
+        if quad is None:
+            quad = self._random_quad()
+
         self._current = {
-            "a": dict(a, visual_km2=visual_area_km2(a)),
-            "b": dict(b, visual_km2=visual_area_km2(b)),
+            k: dict(country, visual_km2=visual_area_km2(country))
+            for k, country in zip(CHOICE_KEYS, quad)
         }
         return dict(self._current)
 
     # ── guessing ──────────────────────────────────────────────────────
 
     def guess(self, key: str) -> dict | None:
-        if self._current is None or key not in ("a", "b"):
+        if self._current is None or key not in CHOICE_KEYS:
             return None
-        a = self._current["a"]
-        b = self._current["b"]
-        winner_key = "a" if float(a["area_km2"]) >= float(b["area_km2"]) else "b"
-        correct = key == winner_key
+
+        # Identify true winner and visual winner
+        winner_key = max(CHOICE_KEYS, key=lambda k: float(self._current[k]["area_km2"]))
+        visual_winner_key = max(CHOICE_KEYS, key=lambda k: float(self._current[k]["visual_km2"]))
+
+        correct = (key == winner_key)
         self.rounds += 1
         if correct:
             self.correct_count += 1
@@ -99,17 +92,27 @@ class SizeDuel:
             self.best_streak = max(self.best_streak, self.streak)
         else:
             self.streak = 0
+
         winner = self._current[winner_key]
-        loser = self._current["b" if winner_key == "a" else "a"]
-        visual_winner_key = "a" if a["visual_km2"] >= b["visual_km2"] else "b"
+        visual_winner = self._current[visual_winner_key]
+
+        # Calculate ratio of winner to player's choice or runner-up
+        sorted_keys = sorted(CHOICE_KEYS, key=lambda k: float(self._current[k]["area_km2"]), reverse=True)
+        runner_up_key = sorted_keys[1]
+        runner_up = self._current[runner_up_key]
+        ratio_vs_runner_up = float(winner["area_km2"]) / max(1.0, float(runner_up["area_km2"]))
+
         result = {
             "correct": correct,
             "winner_key": winner_key,
+            "guessed_key": key,
             "winner": dict(winner),
-            "loser": dict(loser),
-            "true_ratio": float(winner["area_km2"]) / max(1.0, float(loser["area_km2"])),
-            "deceptive": visual_winner_key != winner_key,
+            "runner_up": dict(runner_up),
+            "ratio_vs_runner_up": ratio_vs_runner_up,
             "visual_winner_key": visual_winner_key,
+            "visual_winner": dict(visual_winner),
+            "deceptive": visual_winner_key != winner_key,
+            "countries": {k: dict(v) for k, v in self._current.items()},
             "streak": self.streak,
             "best_streak": self.best_streak,
             "rounds": self.rounds,

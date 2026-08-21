@@ -709,7 +709,12 @@ class TrueSizeDockWidget(QDockWidget):
         if len(ghosts) < 2:
             self.truesize_status.setText("Drop at least 2 countries/ghosts on the canvas to calculate the Area Ratio Matrix!")
             return
-        entities = [{"name": g.name, "area_km2": g.area_km2, "lat": g.center_lat} for g in ghosts]
+        entities = []
+        for g in ghosts:
+            lat = getattr(g, "center_lat", None)
+            if lat is None:
+                lat = g.dst_anchor.y() if hasattr(g, "dst_anchor") else 0.0
+            entities.append({"name": g.name, "area_km2": g.area_km2, "lat": float(lat)})
         matrix = area_ratio_matrix(entities)
         lines = []
         for row in matrix:
@@ -721,16 +726,29 @@ class TrueSizeDockWidget(QDockWidget):
         QMessageBox.information(self, "Area Ratio Matrix", msg)
 
     def _export_truth_lab(self) -> None:
-        records = self.world.records()
-        if not records:
-            QMessageBox.warning(self, PLUGIN_TITLE, "World data is not available.")
-            return
         current_ghost = self.manager.ghosts[0] if self.manager.ghosts else None
+        outline = []
+        if current_ghost is not None:
+            if hasattr(current_ghost, "wgs84_ring") and current_ghost.wgs84_ring:
+                outline = current_ghost.wgs84_ring
+            elif hasattr(current_ghost, "current_wgs84") and current_ghost.current_wgs84 and not current_ghost.current_wgs84.isNull():
+                poly = current_ghost.current_wgs84.asPolygon()
+                if poly and len(poly) > 0 and len(poly[0]) > 0:
+                    outline = [[p.x(), p.y()] for p in poly[0]]
+            name = getattr(current_ghost, "name", "Country")
+            area = getattr(current_ghost, "area_km2", 100000.0)
+        else:
+            records = self.world.records()
+            rec = records[0] if records else {"name": "Greenland", "area_km2": 2166086.0, "ring": []}
+            name = rec.get("name", "Greenland")
+            area = rec.get("area_km2", 2166086.0)
+            outline = rec.get("ring", [])
+
         country_data = {
-            "name": current_ghost.name if current_ghost else "Greenland",
-            "iso_a3": "GRL",
-            "area_km2": current_ghost.area_km2 if current_ghost else 2166086.0,
-            "outline": current_ghost.wgs84_ring if current_ghost else [],
+            "name": name,
+            "iso_a3": name[:3].upper(),
+            "area_km2": float(area),
+            "outline": outline,
         }
         filename, _ = QFileDialog.getSaveFileName(
             self, "Export Map Truth Lab HTML",

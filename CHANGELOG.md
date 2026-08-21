@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1] - 2026-08-21
+
+### Changed
+- **Size Duel 4-Choice Mode**: Upgraded Size Duel to a 2x2 grid of 4 countries with exactly one single correct ground-area winner and polar Mercator deception preference.
+
+### Fixed
+- **Ghost Attribute Compatibility**: Resolved `center_lat` and `wgs84_ring` attribute errors in the Area Ratio Matrix and HTML Map Truth Lab exporter.
+
 ## [0.4.0] - 2026-08-21
 
 ### Added

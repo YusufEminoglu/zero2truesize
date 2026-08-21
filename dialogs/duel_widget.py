@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Size Duel UI: two countries drawn exactly the way a web-Mercator map
-draws them; the player guesses which is truly bigger, the engine confesses
-how much the projection lied."""
+"""Size Duel UI: 4 countries drawn exactly the way a web-Mercator map
+draws them; the player guesses which is truly the largest in ground area,
+and the engine confesses how much the projection lied."""
 from __future__ import annotations
 
 import time
@@ -9,6 +9,7 @@ import time
 from qgis.PyQt.QtCore import QPointF, Qt, pyqtSignal
 from qgis.PyQt.QtGui import QColor, QPainter, QPainterPath, QPen
 from qgis.PyQt.QtWidgets import (
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -20,7 +21,7 @@ from qgis.core import QgsSettings
 
 from ..core.funits import format_area_km2
 from ..core.geomath import mercator_xy
-from ..core.quiz import SizeDuel
+from ..core.quiz import CHOICE_KEYS, SizeDuel
 
 BEST_STREAK_KEY = "zero2truesize/duel_best_streak"
 
@@ -43,7 +44,7 @@ class ShapePanel(QWidget):
         self._state: str | None = None
         self._hover = False
         self._clickable = True
-        self.setMinimumSize(140, 155)
+        self.setMinimumSize(110, 110)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -115,51 +116,51 @@ class ShapePanel(QWidget):
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt API)
         del event
-        self.clicked.emit()
+        if self._clickable:
+            self.clicked.emit()
 
 
 class DuelWidget(QWidget):
-    """The full Size Duel tab."""
+    """The 4-choice Size Duel tab."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._engine: SizeDuel | None = None
-        self._round: dict | None = None
+        self._round: dict[str, dict] | None = None
         self._accepting = False
+        self._panels: dict[str, ShapePanel] = {}
+        self._labels: dict[str, QLabel] = {}
         self._build_ui()
 
     def _build_ui(self) -> None:
         root = QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
-        title = QLabel("<b>Which one is REALLY bigger?</b><br>"
-                       "<span style='color:#78909c;'>Both are drawn exactly the way a "
-                       "web-Mercator map draws them.</span>")
+        root.setSpacing(6)
+
+        title = QLabel("<b>Which of these 4 is REALLY biggest?</b><br>"
+                       "<span style='color:#78909c;'>Click the single country with the largest true ground area.</span>")
         title.setWordWrap(True)
         root.addWidget(title)
 
-        row = QHBoxLayout()
-        self.panel_a = ShapePanel(self)
-        self.panel_b = ShapePanel(self)
-        self.panel_a.clicked.connect(lambda: self._on_guess("a"))
-        self.panel_b.clicked.connect(lambda: self._on_guess("b"))
-        col_a = QVBoxLayout()
-        col_a.addWidget(self.panel_a)
-        self.label_a = QLabel("")
-        self.label_a.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label_a.setWordWrap(True)
-        col_a.addWidget(self.label_a)
-        col_b = QVBoxLayout()
-        col_b.addWidget(self.panel_b)
-        self.label_b = QLabel("")
-        self.label_b.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label_b.setWordWrap(True)
-        col_b.addWidget(self.label_b)
-        row.addLayout(col_a)
-        vs = QLabel("<b>vs</b>")
-        vs.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        row.addWidget(vs)
-        row.addLayout(col_b)
-        root.addLayout(row)
+        grid = QGridLayout()
+        grid.setSpacing(8)
+
+        for i, key in enumerate(CHOICE_KEYS):
+            r, c = divmod(i, 2)
+            col = QVBoxLayout()
+            panel = ShapePanel(self)
+            panel.clicked.connect(lambda k=key: self._on_guess(k))
+            self._panels[key] = panel
+            col.addWidget(panel)
+
+            lbl = QLabel(f"<b>Choice {key.upper()}</b>")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl.setWordWrap(True)
+            self._labels[key] = lbl
+            col.addWidget(lbl)
+            grid.addLayout(col, r, c)
+
+        root.addLayout(grid)
 
         self.result = QLabel("")
         self.result.setWordWrap(True)
@@ -196,26 +197,30 @@ class DuelWidget(QWidget):
         if self._round is None:
             self.result.setText("Not enough countries to play with.")
             return
-        a = self._round["a"]
-        b = self._round["b"]
-        merc_a = [mercator_xy(lat, lon) for lon, lat in a["ring"]]
-        merc_b = [mercator_xy(lat, lon) for lon, lat in b["ring"]]
-        scale = self._common_scale(merc_a, merc_b)
-        self.panel_a.set_shape(merc_a, scale)
-        self.panel_b.set_shape(merc_b, scale)
-        self.panel_a.set_clickable(True)
-        self.panel_b.set_clickable(True)
-        self.label_a.setText(f"<b>{a['name']}</b>")
-        self.label_b.setText(f"<b>{b['name']}</b>")
-        self.result.setText("Click the one you think is truly bigger…")
+
+        all_merc = {}
+        for key in CHOICE_KEYS:
+            c = self._round[key]
+            all_merc[key] = [mercator_xy(lat, lon) for lon, lat in c["ring"]]
+
+        scale = self._common_scale(list(all_merc.values()))
+
+        for key in CHOICE_KEYS:
+            c = self._round[key]
+            self._panels[key].set_shape(all_merc[key], scale)
+            self._panels[key].set_clickable(True)
+            self._panels[key].set_state(None)
+            self._labels[key].setText(f"<b>{c['name']}</b>")
+
+        self.result.setText("Click the country you think is truly the biggest…")
         self.next_button.setText("Skip round")
         self._accepting = True
         self._update_stats()
 
-    def _common_scale(self, merc_a, merc_b) -> float:
-        target_px = 120.0
+    def _common_scale(self, merc_point_lists: list[list[tuple[float, float]]]) -> float:
+        target_px = 95.0
         largest = 1.0
-        for pts in (merc_a, merc_b):
+        for pts in merc_point_lists:
             if not pts:
                 continue
             xs = [p[0] for p in pts]
@@ -224,40 +229,42 @@ class DuelWidget(QWidget):
         return largest / target_px
 
     def _on_guess(self, key: str) -> None:
-        if not self._accepting or self._engine is None:
+        if not self._accepting or self._engine is None or self._round is None:
             return
         result = self._engine.guess(key)
         if result is None:
             return
         self._accepting = False
-        self.panel_a.set_clickable(False)
-        self.panel_b.set_clickable(False)
+        for panel in self._panels.values():
+            panel.set_clickable(False)
         self.next_button.setText("▶ Next round")
+
         winner_key = result["winner_key"]
-        self.panel_a.set_state("win" if winner_key == "a" else "lose")
-        self.panel_b.set_state("win" if winner_key == "b" else "lose")
+        for k in CHOICE_KEYS:
+            if k == winner_key:
+                self._panels[k].set_state("win")
+            elif k == key and not result["correct"]:
+                self._panels[k].set_state("lose")
+            else:
+                self._panels[k].set_state(None)
+
+            c_info = result["countries"][k]
+            self._labels[k].setText(
+                f"<b>{c_info['name']}</b><br>{format_area_km2(float(c_info['area_km2']))}"
+            )
+
         winner = result["winner"]
-        loser = result["loser"]
-        self.label_a.setText(self._area_label(result, "a"))
-        self.label_b.setText(self._area_label(result, "b"))
         verdict = ("<span style='color:#2e7d32;'><b>✔ Correct!</b></span>" if result["correct"]
-                   else "<span style='color:#c62828;'><b>✘ Not this time.</b></span>")
-        text = (f"{verdict} {winner['name']} is ×{result['true_ratio']:.1f} bigger "
-                f"than {loser['name']}.")
+                   else "<span style='color:#c62828;'><b>✘ Not quite!</b></span>")
+        text = f"{verdict} <b>{winner['name']}</b> is the true winner ({format_area_km2(float(winner['area_km2']))})."
         if result["deceptive"]:
-            visual = self._round_country(result, result["visual_winner_key"])
-            text += (f"<br><i>The map was lying: it drew {visual['name']} bigger. "
-                     "Mercator strikes again.</i>")
+            vis_winner = result["visual_winner"]
+            text += (f"<br><i>Mercator deception: {vis_winner['name']} was drawn visually largest "
+                     "due to high-latitude inflation!</i>")
+
         self.result.setText(text)
         self._update_stats()
         QgsSettings().setValue(BEST_STREAK_KEY, self._engine.best_streak)
-
-    def _round_country(self, result: dict, key: str) -> dict:
-        return result["winner"] if key == result["winner_key"] else result["loser"]
-
-    def _area_label(self, result: dict, key: str) -> str:
-        country = self._round_country(result, key)
-        return f"<b>{country['name']}</b><br>{format_area_km2(float(country['area_km2']))}"
 
     def _update_stats(self) -> None:
         if self._engine is None:

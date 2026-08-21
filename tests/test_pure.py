@@ -171,19 +171,21 @@ class TestQuiz(unittest.TestCase):
         for _ in range(20):
             rnd = engine.next_round()
             self.assertIsNotNone(rnd)
-            a, b = rnd["a"], rnd["b"]
-            self.assertNotEqual(a["name"], b["name"])
-            self.assertGreater(a["visual_km2"], 0)
-            winner_key = "a" if a["area_km2"] >= b["area_km2"] else "b"
+            self.assertEqual(set(rnd.keys()), {"a", "b", "c", "d"})
+            names = [rnd[k]["name"] for k in ("a", "b", "c", "d")]
+            self.assertEqual(len(set(names)), 4)
+            winner_key = max(("a", "b", "c", "d"), key=lambda k: rnd[k]["area_km2"])
             result = engine.guess(winner_key)
             self.assertTrue(result["correct"])
+            self.assertEqual(result["winner_key"], winner_key)
         self.assertEqual(engine.streak, 20)
         self.assertEqual(engine.best_streak, 20)
 
     def test_wrong_guess_resets_streak(self):
         engine = quiz.SizeDuel(self._countries(), seed=5)
         rnd = engine.next_round()
-        loser_key = "a" if rnd["a"]["area_km2"] < rnd["b"]["area_km2"] else "b"
+        winner_key = max(("a", "b", "c", "d"), key=lambda k: rnd[k]["area_km2"])
+        loser_key = [k for k in ("a", "b", "c", "d") if k != winner_key][0]
         result = engine.guess(loser_key)
         self.assertFalse(result["correct"])
         self.assertEqual(engine.streak, 0)
@@ -197,9 +199,11 @@ class TestQuiz(unittest.TestCase):
         deceptive = 0
         for _ in range(30):
             rnd = engine.next_round()
-            if quiz.SizeDuel._is_deceptive(rnd["a"], rnd["b"]):
+            countries = [rnd[k] for k in ("a", "b", "c", "d")]
+            if quiz.SizeDuel._is_deceptive_quad(countries):
                 deceptive += 1
-            engine.guess("a")
+            winner_key = max(("a", "b", "c", "d"), key=lambda k: rnd[k]["area_km2"])
+            engine.guess(winner_key)
         self.assertGreater(deceptive, 15)
 
 
