@@ -27,10 +27,12 @@ def _load_core():
             importlib.import_module("z2core.funits"),
             importlib.import_module("z2core.quiz"),
             importlib.import_module("z2core.distortion"),
-            importlib.import_module("z2core.admin_data"))
+            importlib.import_module("z2core.admin_data"),
+            importlib.import_module("z2core.recommender"),
+            importlib.import_module("z2core.exporter"))
 
 
-geomath, funits, quiz, distortion, admin_data = _load_core()
+geomath, funits, quiz, distortion, admin_data, recommender, exporter = _load_core()
 
 
 class TestAdminData(unittest.TestCase):
@@ -232,6 +234,50 @@ class TestDistortion(unittest.TestCase):
         self.assertTrue(card["ok"])
         self.assertGreater(card["max_omega_deg"], 20.0)
         self.assertGreater(card["area_spread"], 3.0)
+
+
+class TestRecommender(unittest.TestCase):
+    def test_recommend_projections(self):
+        recs = recommender.recommend_projections(min_lat=30.0, max_lat=60.0, purpose="All")
+        self.assertGreater(len(recs), 3)
+        # Verify scores are sorted descending
+        scores = [r["score"] for r in recs]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+
+    def test_equal_area_recommendation(self):
+        ea_recs = recommender.recommend_projections(min_lat=-40.0, max_lat=50.0, purpose="Equal-Area")
+        self.assertTrue(all(r["family"] == "Equal-Area" for r in ea_recs))
+        self.assertTrue(any("Mollweide" in r["name"] or "Eckert" in r["name"] for r in ea_recs))
+
+
+class TestAreaMatrix(unittest.TestCase):
+    def test_pairwise_ratio_and_distortion(self):
+        entities = [
+            {"name": "Equator Island", "area_km2": 1000.0, "lat": 0.0},
+            {"name": "Arctic Island", "area_km2": 1000.0, "lat": 60.0},
+        ]
+        matrix = geomath.area_ratio_matrix(entities)
+        self.assertEqual(len(matrix), 1)
+        row = matrix[0]
+        self.assertEqual(row["true_ratio"], 1.0)
+        # At 60 deg lat, Mercator inflates area by 4x
+        self.assertAlmostEqual(row["mercator_ratio"], 0.25, delta=0.05)
+        self.assertAlmostEqual(row["distortion_factor"], 0.25, delta=0.05)
+
+
+class TestHtmlExporter(unittest.TestCase):
+    def test_truth_lab_html_output(self):
+        country = {
+            "name": "Greenland",
+            "iso_a3": "GRL",
+            "area_km2": 2166086.0,
+            "outline": [[-40.0, 60.0], [-30.0, 70.0], [-50.0, 75.0], [-40.0, 60.0]],
+        }
+        html_doc = exporter.generate_truth_lab_html(country)
+        self.assertIn("<!doctype html>", html_doc)
+        self.assertIn("Greenland", html_doc)
+        self.assertIn("Map Truth Lab", html_doc)
+        self.assertIn("Mercator Latitude Inflation Simulator", html_doc)
 
 
 if __name__ == "__main__":

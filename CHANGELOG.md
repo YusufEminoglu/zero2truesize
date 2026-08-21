@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0] - 2026-08-21
+
+### Added
+- **CRS Distortion Recommender & Projection Optimizer**: Evaluates projection candidate distortion across canvas latitude extent and ranks them with honesty scores and area/shape grades. Features 1-click canvas projection application.
+- **Pairwise Area Ratio Matrix**: Computes true ground area ratio versus visual Web Mercator area ratio with distortion multiplier.
+- **Standalone Interactive HTML "Map Truth Lab" Infographic Exporter**: Generates responsive, single-file HTML reports with live SVG silhouette visualizer, Mercator latitude inflation slider, and Tissot report card.
+
 ## [0.3.6] - 2026-08-07
 
 - Added online user manual link (https://yusufeminoglu.github.io/zero2truesize/) and GitHub repository star call-to-action.

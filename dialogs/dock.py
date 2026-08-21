@@ -17,6 +17,7 @@ from qgis.PyQt.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDockWidget,
+    QFileDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -30,10 +31,18 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qgis.core import QgsPointXY, QgsProject
+from qgis.core import (
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsPointXY,
+    QgsProject,
+    QgsRectangle,
+)
 
+from ..core.exporter import export_truth_lab_html
 from ..core.funits import FACTS, format_area_km2, format_km
-from ..core.geomath import LCG
+from ..core.geomath import LCG, area_ratio_matrix
+from ..core.recommender import recommend_projections
 from ..tools.support import from_wgs84
 from ..tools.tissot import DistortionHUD, crs_report_card, make_tissot_layer
 from ..tools.truesize import TrueSizeManager
@@ -287,6 +296,16 @@ class TrueSizeDockWidget(QDockWidget):
         for b in (remove, clear, save):
             buttons.addWidget(b)
         layout.addLayout(buttons)
+
+        adv_row = QHBoxLayout()
+        matrix_btn = QPushButton("📊 Area Ratio Matrix")
+        matrix_btn.clicked.connect(self._show_area_matrix)
+        export_html_btn = QPushButton("🌐 Export Truth Lab HTML…")
+        export_html_btn.clicked.connect(self._export_truth_lab)
+        adv_row.addWidget(matrix_btn)
+        adv_row.addWidget(export_html_btn)
+        layout.addLayout(adv_row)
+
         layout.addStretch(1)
         return self._wrap_scroll(page)
 
@@ -405,6 +424,35 @@ class TrueSizeDockWidget(QDockWidget):
         self.hud_checkbox = QCheckBox("Live distortion readout on the canvas")
         self.hud_checkbox.toggled.connect(self.hud.set_enabled)
         layout.addWidget(self.hud_checkbox)
+
+        # ── Projection Recommender ────────────────────────────────────
+        rec_box = QGroupBox("Projection Recommender & Optimizer")
+        rec_layout = QVBoxLayout(rec_box)
+        rec_hint = QLabel("Analyze current canvas latitude bounds and find the most honest projection for your map's purpose.")
+        rec_hint.setWordWrap(True)
+        rec_hint.setStyleSheet(IDLE_STYLE)
+        rec_layout.addWidget(rec_hint)
+
+        filter_row = QHBoxLayout()
+        filter_row.addWidget(QLabel("Purpose:"))
+        self.rec_purpose_combo = QComboBox()
+        self.rec_purpose_combo.addItems(["All", "Equal-Area", "Conformal", "Compromise"])
+        filter_row.addWidget(self.rec_purpose_combo, 1)
+        rec_btn = QPushButton("🔍 Recommend")
+        rec_btn.clicked.connect(self._recommend_crs)
+        filter_row.addWidget(rec_btn)
+        rec_layout.addLayout(filter_row)
+
+        self.rec_list = QListWidget()
+        self.rec_list.setMaximumHeight(130)
+        rec_layout.addWidget(self.rec_list)
+
+        apply_crs_btn = QPushButton("Apply Selected Projection to Canvas")
+        apply_crs_btn.setProperty("class", "primary")
+        apply_crs_btn.clicked.connect(self._apply_recommended_crs)
+        rec_layout.addWidget(apply_crs_btn)
+        layout.addWidget(rec_box)
+
         layout.addStretch(1)
         return self._wrap_scroll(page)
 
@@ -655,6 +703,81 @@ class TrueSizeDockWidget(QDockWidget):
         self.tissot_status.setText(
             f"Added {layer.featureCount()} equal ground-area circles. However round they "
             "look (or don't) is your projection talking.")
+
+    def _show_area_matrix(self) -> None:
+        ghosts = self.manager.ghosts
+        if len(ghosts) < 2:
+            self.truesize_status.setText("Drop at least 2 countries/ghosts on the canvas to calculate the Area Ratio Matrix!")
+            return
+        entities = [{"name": g.name, "area_km2": g.area_km2, "lat": g.center_lat} for g in ghosts]
+        matrix = area_ratio_matrix(entities)
+        lines = []
+        for row in matrix:
+            lines.append(f"<b>{row['entity_a']} vs {row['entity_b']}</b>:<br>"
+                         f"&bull; True Area Ratio: <b>{row['true_ratio']}×</b><br>"
+                         f"&bull; Mercator Projected Ratio: <b>{row['mercator_ratio']}×</b> "
+                         f"(Distortion Factor: <b>{row['distortion_factor']}×</b>)")
+        msg = "<br><br>".join(lines)
+        QMessageBox.information(self, "Area Ratio Matrix", msg)
+
+    def _export_truth_lab(self) -> None:
+        records = self.world.records()
+        if not records:
+            QMessageBox.warning(self, PLUGIN_TITLE, "World data is not available.")
+            return
+        current_ghost = self.manager.ghosts[0] if self.manager.ghosts else None
+        country_data = {
+            "name": current_ghost.name if current_ghost else "Greenland",
+            "iso_a3": "GRL",
+            "area_km2": current_ghost.area_km2 if current_ghost else 2166086.0,
+            "outline": current_ghost.wgs84_ring if current_ghost else [],
+        }
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "Export Map Truth Lab HTML",
+            f"Map_Truth_Lab_{country_data['name'].replace(' ', '_')}.html",
+            "HTML File (*.html)")
+        if not filename:
+            return
+        if not filename.lower().endswith(".html"):
+            filename += ".html"
+        try:
+            export_truth_lab_html(filename, country_data)
+            self.truesize_status.setText(f"Truth Lab HTML saved to: {filename}")
+        except Exception as exc:
+            QMessageBox.critical(self, PLUGIN_TITLE, f"Export failed: {exc}")
+
+    def _recommend_crs(self) -> None:
+        canvas = self.iface.mapCanvas()
+        extent = canvas.extent()
+        wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
+        canvas_crs = canvas.mapSettings().destinationCrs()
+        tr = QgsCoordinateTransform(canvas_crs, wgs84, QgsProject.instance())
+        with suppress(Exception):
+            wgs84_extent = tr.transformBoundingBox(extent)
+            min_lat = max(-80.0, min(80.0, wgs84_extent.yMinimum()))
+            max_lat = max(-80.0, min(80.0, wgs84_extent.yMaximum()))
+            if min_lat >= max_lat:
+                min_lat, max_lat = -50.0, 60.0
+            purpose = self.rec_purpose_combo.currentText()
+            recs = recommend_projections(min_lat, max_lat, purpose=purpose)
+            self.rec_list.clear()
+            for r in recs:
+                item = QListWidgetItem(
+                    f"[{r['score']} pts] {r['auth_id']} · {r['name']} ({r['family']})\n"
+                    f"   Area: {r['area_grade']} (×{r['area_spread']}) · Shape: {r['shape_grade']} (max {r['max_omega_deg']}°)")
+                item.setData(Qt.ItemDataRole.UserRole, r["auth_id"])
+                self.rec_list.addItem(item)
+
+    def _apply_recommended_crs(self) -> None:
+        item = self.rec_list.currentItem()
+        if not item:
+            return
+        auth_id = str(item.data(Qt.ItemDataRole.UserRole))
+        if auth_id:
+            crs = QgsCoordinateReferenceSystem(auth_id)
+            if crs.isValid():
+                QgsProject.instance().setCrs(crs)
+                self.iface.mapCanvas().refresh()
 
     # ── footer ────────────────────────────────────────────────────────
 

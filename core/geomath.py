@@ -198,3 +198,37 @@ class LCG:
             j = self.randint(i + 1)
             items[i], items[j] = items[j], items[i]
         return items
+
+
+def mercator_areal_inflation(lat: float) -> float:
+    """Areal inflation factor (sec^2 lat) on a spherical Mercator map."""
+    cos_lat = math.cos(math.radians(clamp(lat, -85.0, 85.0)))
+    return 1.0 / max(0.0025, cos_lat * cos_lat)
+
+
+def area_ratio_matrix(entities: list[dict]) -> list[dict]:
+    """Compute pairwise true geodetic area ratios vs visual Mercator area ratios."""
+    results = []
+    for i, a in enumerate(entities):
+        a_area = float(a.get("area_km2", 1.0))
+        a_lat = float(a.get("lat", 0.0))
+        a_infl = mercator_areal_inflation(a_lat)
+        a_proj_area = a_area * a_infl
+        for b in entities[i + 1:]:
+            b_area = float(b.get("area_km2", 1.0))
+            b_lat = float(b.get("lat", 0.0))
+            b_infl = mercator_areal_inflation(b_lat)
+            b_proj_area = b_area * b_infl
+
+            true_ratio = a_area / max(1e-6, b_area)
+            proj_ratio = a_proj_area / max(1e-6, b_proj_area)
+            distortion_multiplier = proj_ratio / max(1e-6, true_ratio)
+
+            results.append({
+                "entity_a": a.get("name", "A"),
+                "entity_b": b.get("name", "B"),
+                "true_ratio": round(true_ratio, 2),
+                "mercator_ratio": round(proj_ratio, 2),
+                "distortion_factor": round(distortion_multiplier, 2),
+            })
+    return results

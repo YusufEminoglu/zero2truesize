@@ -30,6 +30,9 @@
 ## ✨ Features
 
 - **True Size drag** — grab any country (bundled offline world layer) *or any polygon from your own layers* and drag it across the map; the outline is re-projected on the fly through an equal-area azimuthal projection centred under your cursor, so it **always covers its true ground area**. Rotate with `R`/`E`, drop as many coloured ghosts as you like, export them as a layer.
+- **Area Ratio Matrix** — computes pairwise true ground area ratios vs apparent Web Mercator visual area ratios across all active pinned country ghosts with distortion multipliers.
+- **Projection Recommender & Optimizer** — analyzes the current map canvas extent and recommends the most honest projections (Equal-Area, Conformal, Compromise) with 1-click canvas projection application.
+- **Standalone HTML Map Truth Lab Exporter** — generates interactive, zero-dependency HTML infographics with SVG silhouettes, real-time Mercator latitude inflation slider, and Tissot report cards.
 - **Administrative boundary vectors** — choose a country and download its ADM0
   country boundary from the bundled world data or ADM1 first-level units from
   Natural Earth's official 10m states/provinces archive.
