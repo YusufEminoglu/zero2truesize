@@ -720,25 +720,18 @@ class TrueSizeDockWidget(QDockWidget):
             "look (or don't) is your projection talking.")
 
     def _show_area_matrix(self) -> None:
+        from .matrix_dialog import AreaRatioMatrixDialog
+
         ghosts = self.manager.ghosts
-        if len(ghosts) < 2:
-            self.truesize_status.setText("Drop at least 2 countries/ghosts on the canvas to calculate the Area Ratio Matrix!")
-            return
         entities = []
         for g in ghosts:
             lat = getattr(g, "center_lat", None)
             if lat is None:
                 lat = g.dst_anchor.y() if hasattr(g, "dst_anchor") else 0.0
             entities.append({"name": g.name, "area_km2": g.area_km2, "lat": float(lat)})
-        matrix = area_ratio_matrix(entities)
-        lines = []
-        for row in matrix:
-            lines.append(f"<b>{row['entity_a']} vs {row['entity_b']}</b>:<br>"
-                         f"&bull; True Area Ratio: <b>{row['true_ratio']}×</b><br>"
-                         f"&bull; Mercator Projected Ratio: <b>{row['mercator_ratio']}×</b> "
-                         f"(Distortion Factor: <b>{row['distortion_factor']}×</b>)")
-        msg = "<br><br>".join(lines)
-        QMessageBox.information(self, "Area Ratio Matrix", msg)
+
+        dialog = AreaRatioMatrixDialog(entities if len(entities) >= 2 else None, parent=self)
+        dialog.exec_()
 
     def _export_truth_lab(self) -> None:
         current_ghost = self.manager.ghosts[0] if self.manager.ghosts else None

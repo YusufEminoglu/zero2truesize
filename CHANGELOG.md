@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.3] - 2026-08-21
+
+### Added
+- **Interactive 2D OD Matrix Grid Table Dialog (`AreaRatioMatrixDialog`)**: Replaced text message box with a 2D Origin-Destination grid table dialog (`QTableWidget`) featuring:
+  - 4 View Modes: *Combined OD View*, *Distortion Factor Lie Multiplier*, *True Geodetic Ratio*, *Mercator Apparent Ratio*.
+  - Color-coded heatmap highlighting (honest green, inflated amber/red, deflated cyan).
+  - Interactive cell click inspector with geodetic ratio details.
+  - Global benchmark countries fallback when canvas has fewer than 2 ghosts.
+  - Direct 1-click CSV Matrix Exporter (`💾 Export Matrix to CSV…`) and Clipboard TSV copy.
+
 ## [0.4.2] - 2026-08-21
 
 ### Changed

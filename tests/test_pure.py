@@ -268,6 +268,19 @@ class TestAreaMatrix(unittest.TestCase):
         self.assertAlmostEqual(row["mercator_ratio"], 0.25, delta=0.05)
         self.assertAlmostEqual(row["distortion_factor"], 0.25, delta=0.05)
 
+    def test_od_matrix_grid(self):
+        entities = [
+            {"name": "Greenland", "area_km2": 2000000.0, "lat": 72.0},
+            {"name": "Brazil", "area_km2": 8000000.0, "lat": -10.0},
+        ]
+        grid = geomath.od_matrix_grid(entities)
+        self.assertEqual(len(grid["names"]), 2)
+        self.assertEqual(len(grid["true_matrix"]), 2)
+        self.assertEqual(grid["true_matrix"][0][0], 1.0)
+        self.assertAlmostEqual(grid["true_matrix"][0][1], 0.25, delta=0.01)
+        self.assertAlmostEqual(grid["true_matrix"][1][0], 4.0, delta=0.01)
+        self.assertTrue(grid["dist_matrix"][0][1] > 1.0)  # Greenland is inflated relative to Brazil
+
 
 class TestHtmlExporter(unittest.TestCase):
     def test_truth_lab_html_output(self):

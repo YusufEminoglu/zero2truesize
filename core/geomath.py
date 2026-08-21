@@ -232,3 +232,47 @@ def area_ratio_matrix(entities: list[dict]) -> list[dict]:
                 "distortion_factor": round(distortion_multiplier, 2),
             })
     return results
+
+
+def od_matrix_grid(entities: list[dict]) -> dict:
+    """Compute complete NxN Origin-Destination matrix of True Area, Mercator Area, and Distortion Factors."""
+    names = [e.get("name", f"Entity {i+1}") for i, e in enumerate(entities)]
+    areas = [float(e.get("area_km2", 1.0)) for e in entities]
+    lats = [float(e.get("lat", 0.0)) for e in entities]
+    inflations = [mercator_areal_inflation(lat) for lat in lats]
+    merc_areas = [areas[i] * inflations[i] for i in range(len(entities))]
+
+    n = len(entities)
+    true_matrix = []
+    merc_matrix = []
+    dist_matrix = []
+
+    for i in range(n):
+        true_row = []
+        merc_row = []
+        dist_row = []
+        for j in range(n):
+            if i == j:
+                true_row.append(1.0)
+                merc_row.append(1.0)
+                dist_row.append(1.0)
+            else:
+                t_ratio = areas[i] / max(1e-6, areas[j])
+                m_ratio = merc_areas[i] / max(1e-6, merc_areas[j])
+                d_factor = m_ratio / max(1e-6, t_ratio)
+                true_row.append(round(t_ratio, 3))
+                merc_row.append(round(m_ratio, 3))
+                dist_row.append(round(d_factor, 3))
+        true_matrix.append(true_row)
+        merc_matrix.append(merc_row)
+        dist_matrix.append(dist_row)
+
+    return {
+        "names": names,
+        "areas_km2": areas,
+        "lats": lats,
+        "inflations": inflations,
+        "true_matrix": true_matrix,
+        "merc_matrix": merc_matrix,
+        "dist_matrix": dist_matrix,
+    }
