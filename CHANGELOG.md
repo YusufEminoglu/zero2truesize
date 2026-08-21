@@ -2,6 +2,10 @@
 
 ## [0.4.1] - 2026-08-21
 
+### Added
+- **Automatic Canvas Cleanup on Close**: Closing or hiding the dock panel automatically purges all canvas rubber bands, ghost outlines, HUD readouts, tool markers, and unsets active map tools.
+- **Prominent Clear All Button**: Re-styled and elevated "🧹 Clear All Canvas Ghosts" with vivid, high-contrast action styling and instant status feedback.
+
 ### Changed
 - **Size Duel 4-Choice Mode**: Upgraded Size Duel to a 2x2 grid of 4 countries with exactly one single correct ground-area winner and polar Mercator deception preference.
 

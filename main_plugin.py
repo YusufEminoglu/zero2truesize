@@ -84,7 +84,7 @@ class O2TrueSizePlugin:
 
                 self._dock = TrueSizeDockWidget(self.iface, self.iface.mainWindow())
                 self._dock.setObjectName("O2TrueSizeDock")
-                self._dock.visibilityChanged.connect(self.panel_action.setChecked)
+                self._dock.visibilityChanged.connect(self._on_dock_visibility_changed)
                 self._dock.request_tool.connect(self._activate_tool)
                 self._dock.request_deactivate.connect(self._deactivate_tool)
                 self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._dock)
@@ -99,6 +99,16 @@ class O2TrueSizePlugin:
         self._dock.setVisible(not self._dock.isVisible())
         if self._dock.isVisible():
             self._dock.raise_()
+        else:
+            self._on_dock_visibility_changed(False)
+
+    def _on_dock_visibility_changed(self, visible: bool) -> None:
+        self.panel_action.setChecked(visible)
+        if not visible:
+            self._deactivate_tool()
+            if self._dock is not None:
+                with suppress(Exception):
+                    self._dock.clean_up()
 
     # ── map tools ─────────────────────────────────────────────────────
 
@@ -121,6 +131,14 @@ class O2TrueSizePlugin:
         current = canvas.mapTool()
         if current is not None and current in self._tools.values():
             canvas.unsetMapTool(current)
+        for tool in self._tools.values():
+            with suppress(Exception):
+                if hasattr(tool, "clear_markers"):
+                    tool.clear_markers()
+                if hasattr(tool, "reset"):
+                    tool.reset()
+                if hasattr(tool, "cancel_carry"):
+                    tool.cancel_carry()
 
     def _create_tool(self, key: str):
         canvas = self.iface.mapCanvas()

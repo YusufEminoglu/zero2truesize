@@ -286,16 +286,24 @@ class TrueSizeDockWidget(QDockWidget):
         self.ghost_list.setMaximumHeight(150)
         layout.addWidget(self.ghost_list)
 
-        buttons = QHBoxLayout()
-        remove = QPushButton("Remove")
+        ghost_actions = QHBoxLayout()
+        remove = QPushButton("Remove selected")
         remove.clicked.connect(self._remove_selected_ghost)
-        clear = QPushButton("Clear all")
-        clear.clicked.connect(self.manager.clear)
         save = QPushButton("Save as layer")
         save.clicked.connect(self._export_ghosts)
-        for b in (remove, clear, save):
-            buttons.addWidget(b)
-        layout.addLayout(buttons)
+        ghost_actions.addWidget(remove)
+        ghost_actions.addWidget(save)
+        layout.addLayout(ghost_actions)
+
+        self.clear_btn = QPushButton("🧹 Clear All Canvas Ghosts")
+        self.clear_btn.setStyleSheet(
+            "QPushButton { font-weight: bold; background-color: #d32f2f; color: #ffffff; "
+            "border: 1px solid #b71c1c; border-radius: 6px; padding: 6px 12px; font-size: 9pt; } "
+            "QPushButton:hover { background-color: #b71c1c; }"
+        )
+        self.clear_btn.setToolTip("Immediately remove all ghost outlines and temporary comparison overlays from the canvas.")
+        self.clear_btn.clicked.connect(self._on_clear_all_clicked)
+        layout.addWidget(self.clear_btn)
 
         adv_row = QHBoxLayout()
         matrix_btn = QPushButton("📊 Area Ratio Matrix")
@@ -599,6 +607,11 @@ class TrueSizeDockWidget(QDockWidget):
         if row >= 0:
             self.manager.remove_at(row)
 
+    def _on_clear_all_clicked(self) -> None:
+        count = len(self.manager.ghosts)
+        self.manager.clear()
+        self.truesize_status.setText(f"Cleared {count} ghost outline(s) from canvas." if count else "Canvas is clean.")
+
     def _export_ghosts(self) -> None:
         layer = self.manager.export_layer()
         if layer is None:
@@ -838,7 +851,43 @@ class TrueSizeDockWidget(QDockWidget):
         finally:
             self._theme_refreshing = False
 
+    def clean_up(self) -> None:
+        """Clean up all canvas rubber bands, ghosts, HUD, tool artifacts, and temporary layers."""
+        with suppress(Exception):
+            self.manager.clear()
+        with suppress(Exception):
+            self.hud.set_enabled(False)
+            if hasattr(self, "hud_checkbox"):
+                self.hud_checkbox.blockSignals(True)
+                self.hud_checkbox.setChecked(False)
+                self.hud_checkbox.blockSignals(False)
+        with suppress(Exception):
+            self.request_deactivate.emit()
+        with suppress(Exception):
+            self.uncheck_all_tools()
+        with suppress(Exception):
+            if hasattr(self, "fly_button"):
+                self.fly_button.setEnabled(False)
+            self._last_antipode = None
+        with suppress(Exception):
+            if hasattr(self, "world_checkbox") and self.world_checkbox.isChecked():
+                self.world.remove_world_layer_from_project()
+                self.world_checkbox.blockSignals(True)
+                self.world_checkbox.setChecked(False)
+                self.world_checkbox.blockSignals(False)
+        with suppress(Exception):
+            self.iface.mapCanvas().refresh()
+
+    def closeEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        self.clean_up()
+        super().closeEvent(event)
+
+    def hideEvent(self, event) -> None:  # noqa: N802 (Qt API)
+        self.clean_up()
+        super().hideEvent(event)
+
     def dispose(self) -> None:
+        self.clean_up()
         self._fact_timer.stop()
         self.admin.cancel()
         self.hud.dispose()

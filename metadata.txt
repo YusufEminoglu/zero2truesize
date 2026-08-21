@@ -24,8 +24,10 @@ hasProcessingProvider=no
 license=GPL-3
 
 changelog=
-    0.4.1 - 4-Choice Size Duel & Stability fixes:
+    0.4.1 - 4-Choice Size Duel, Automatic Canvas Cleanup & Stability:
         Changed: Size Duel upgraded to 4 choices in a 2x2 grid with a single correct winner and polar Mercator deception preference.
+        Added: Automatic map canvas artifact cleanup on panel hide/close (removes ghost rubber bands, temporary layers, markers, HUD, and resets map tools).
+        Added: Prominent, high-visibility "Clear All Canvas Ghosts" button with distinct styling and tooltips.
         Fixed: Resolved Ghost attribute errors for center_lat and wgs84_ring in Area Ratio Matrix and HTML report exporter.
     0.4.0 - Major feature update:
         Added: CRS Distortion Recommender & Projection Optimizer with 1-click canvas projection application and purpose filters (Equal-Area, Conformal, Compromise).
