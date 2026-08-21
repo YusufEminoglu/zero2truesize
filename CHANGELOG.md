@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.4] - 2026-08-21
+
+### Changed
+- Rebuilt the main plugin icon as a high-contrast, transparent, full-bleed globe and true-size comparison emblem that remains distinct at QGIS toolbar sizes.
+
+### Fixed
+- Replaced the deprecated `QDialog.exec_()` call in the Area Ratio Matrix with the Qt5/Qt6-compatible `exec()` API, clearing the QGIS Hub Qt6 compatibility finding.
+
 ## [0.4.3] - 2026-08-21
 
 ### Added

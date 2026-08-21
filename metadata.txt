@@ -3,7 +3,7 @@ name=02truesize - Map Truth Lab
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 description=Drag countries or downloaded ADM0/ADM1 administrative vectors anywhere to compare true size, grade projection honesty and explore geodesy.
-version=0.4.3
+version=0.4.4
 author=Yusuf Eminoglu
 email=yusuf.eminoglu@deu.edu.tr
 
@@ -24,6 +24,9 @@ hasProcessingProvider=no
 license=GPL-3
 
 changelog=
+    0.4.4 - Qt6 Dialog Compatibility & New Full-Bleed Icon:
+        Fixed: Replaced the deprecated QDialog exec_ call with Qt5/Qt6-compatible exec in the Area Ratio Matrix dialog.
+        Changed: Rebuilt the plugin icon as a high-contrast, transparent, zero-margin globe and true-size comparison emblem.
     0.4.3 - Interactive 2D OD Matrix Grid Dialog:
         Added: Authentic 2D Origin-Destination (OD) Area Ratio & Mercator Distortion Matrix Grid Dialog (QDialog + QTableWidget) replacing text message box.
         Added: 4 Matrix view modes (Combined OD View, Distortion Factor Lie Multiplier, True Geodetic Ratio, Mercator Apparent Ratio).
