@@ -732,7 +732,7 @@ class TrueSizeDockWidget(QDockWidget):
             entities.append({"name": g.name, "area_km2": g.area_km2, "lat": float(lat)})
 
         dialog = AreaRatioMatrixDialog(entities if len(entities) >= 2 else None, parent=self)
-        dialog.exec_()
+        dialog.exec()
 
     def _export_truth_lab(self) -> None:
         ghosts = self.manager.ghosts
