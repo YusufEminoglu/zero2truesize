@@ -128,17 +128,21 @@ class O2TrueSizePlugin:
 
     def _deactivate_tool(self) -> None:
         canvas = self.iface.mapCanvas()
-        current = canvas.mapTool()
-        if current is not None and current in self._tools.values():
-            canvas.unsetMapTool(current)
         for tool in self._tools.values():
             with suppress(Exception):
+                if hasattr(tool, "deactivate"):
+                    tool.deactivate()
                 if hasattr(tool, "clear_markers"):
                     tool.clear_markers()
                 if hasattr(tool, "reset"):
                     tool.reset()
                 if hasattr(tool, "cancel_carry"):
                     tool.cancel_carry()
+        current = canvas.mapTool()
+        if current is not None and current in self._tools.values():
+            canvas.unsetMapTool(current)
+            if hasattr(self.iface, "actionPan") and self.iface.actionPan() is not None:
+                self.iface.actionPan().trigger()
 
     def _create_tool(self, key: str):
         canvas = self.iface.mapCanvas()

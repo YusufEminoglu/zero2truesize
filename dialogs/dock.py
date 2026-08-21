@@ -870,11 +870,19 @@ class TrueSizeDockWidget(QDockWidget):
                 self.fly_button.setEnabled(False)
             self._last_antipode = None
         with suppress(Exception):
-            if hasattr(self, "world_checkbox") and self.world_checkbox.isChecked():
-                self.world.remove_world_layer_from_project()
+            self.world.remove_world_layer_from_project()
+            if hasattr(self, "world_checkbox"):
                 self.world_checkbox.blockSignals(True)
                 self.world_checkbox.setChecked(False)
                 self.world_checkbox.blockSignals(False)
+        with suppress(Exception):
+            project = QgsProject.instance()
+            for lyr_id, lyr in list(project.mapLayers().items()):
+                if "Tissot" in lyr.name() or "indicatrix" in lyr.name().lower():
+                    project.removeMapLayer(lyr_id)
+        with suppress(Exception):
+            if hasattr(self.iface, "actionPan") and self.iface.actionPan() is not None:
+                self.iface.actionPan().trigger()
         with suppress(Exception):
             self.iface.mapCanvas().refresh()
 

@@ -449,6 +449,11 @@ class TrueSizePickTool(QgsMapTool):
         if self._manager.update_ghost(self._carry):
             self._info.setText(self._carry.label())
 
+    def cancel_carry(self) -> None:
+        self._cancel()
+
     def deactivate(self) -> None:
         self._cancel()
+        if hasattr(self, "_info") and self._info is not None:
+            self._info.hide()
         super().deactivate()
