@@ -64,13 +64,19 @@ class ShapePanel(QWidget):
         self._hover = False
         self.update()
 
-    def set_shape(self, merc_points: list[tuple[float, float]], scale: float) -> None:
+    def set_shape(self, merc_points: list[tuple[float, float]], scale: float = 0.0) -> None:
         path = QPainterPath()
-        if merc_points and scale > 0:
+        if merc_points:
             xs = [p[0] for p in merc_points]
             ys = [p[1] for p in merc_points]
+            dx = max(xs) - min(xs)
+            dy = max(ys) - min(ys)
             cx = (min(xs) + max(xs)) / 2.0
             cy = (min(ys) + max(ys)) / 2.0
+            if scale <= 0:
+                # Zoom to the country's own bounding box so all cards are filled equally
+                target_px = 85.0
+                scale = max(1.0, max(dx, dy)) / target_px
             first = True
             for x, y in merc_points:
                 px = (x - cx) / scale
@@ -198,16 +204,11 @@ class DuelWidget(QWidget):
             self.result.setText("Not enough countries to play with.")
             return
 
-        all_merc = {}
         for key in CHOICE_KEYS:
             c = self._round[key]
-            all_merc[key] = [mercator_xy(lat, lon) for lon, lat in c["ring"]]
-
-        scale = self._common_scale(list(all_merc.values()))
-
-        for key in CHOICE_KEYS:
-            c = self._round[key]
-            self._panels[key].set_shape(all_merc[key], scale)
+            merc_pts = [mercator_xy(lat, lon) for lon, lat in c["ring"]]
+            # Fit each country to its own bounding box so they fill their cards equally
+            self._panels[key].set_shape(merc_pts)
             self._panels[key].set_clickable(True)
             self._panels[key].set_state(None)
             self._labels[key].setText(f"<b>{c['name']}</b>")
@@ -216,17 +217,6 @@ class DuelWidget(QWidget):
         self.next_button.setText("Skip round")
         self._accepting = True
         self._update_stats()
-
-    def _common_scale(self, merc_point_lists: list[list[tuple[float, float]]]) -> float:
-        target_px = 95.0
-        largest = 1.0
-        for pts in merc_point_lists:
-            if not pts:
-                continue
-            xs = [p[0] for p in pts]
-            ys = [p[1] for p in pts]
-            largest = max(largest, max(xs) - min(xs), max(ys) - min(ys))
-        return largest / target_px
 
     def _on_guess(self, key: str) -> None:
         if not self._accepting or self._engine is None or self._round is None:

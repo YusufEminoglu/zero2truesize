@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.2] - 2026-08-21
+
+### Changed
+- **Size Duel Individual Bounding Box Fit**: Each country card in Size Duel now zooms to its own bounding box so all 4 silhouettes fill their cards equally, challenging players to evaluate shape and geographic knowledge rather than card fill ratios.
+- **Button Visual Icons**: Upgraded action buttons with distinct icons: ⚖️ *Area Ratio Matrix* and 🔬 *Export Truth Lab HTML Report*.
+
+### Fixed
+- **MultiPolygon Geometry Type Conversion**: Fixed `TypeError` in HTML Map Truth Lab report exporter when exporting MultiPolygon country geometries.
+
 ## [0.4.1] - 2026-08-21
 
 ### Added

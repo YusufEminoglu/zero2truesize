@@ -306,9 +306,11 @@ class TrueSizeDockWidget(QDockWidget):
         layout.addWidget(self.clear_btn)
 
         adv_row = QHBoxLayout()
-        matrix_btn = QPushButton("📊 Area Ratio Matrix")
+        matrix_btn = QPushButton("⚖️ Area Ratio Matrix")
+        matrix_btn.setToolTip("Compare geodetic true area ratios vs Mercator visual ratios for all active ghosts.")
         matrix_btn.clicked.connect(self._show_area_matrix)
-        export_html_btn = QPushButton("🌐 Export Truth Lab HTML…")
+        export_html_btn = QPushButton("🔬 Export Truth Lab Report…")
+        export_html_btn.setToolTip("Export a standalone interactive HTML Map Truth Lab report with real-time latitude slider.")
         export_html_btn.clicked.connect(self._export_truth_lab)
         adv_row.addWidget(matrix_btn)
         adv_row.addWidget(export_html_btn)
@@ -741,15 +743,25 @@ class TrueSizeDockWidget(QDockWidget):
     def _export_truth_lab(self) -> None:
         current_ghost = self.manager.ghosts[0] if self.manager.ghosts else None
         outline = []
+        name = "Greenland"
+        area = 2166086.0
         if current_ghost is not None:
-            if hasattr(current_ghost, "wgs84_ring") and current_ghost.wgs84_ring:
-                outline = current_ghost.wgs84_ring
-            elif hasattr(current_ghost, "current_wgs84") and current_ghost.current_wgs84 and not current_ghost.current_wgs84.isNull():
-                poly = current_ghost.current_wgs84.asPolygon()
-                if poly and len(poly) > 0 and len(poly[0]) > 0:
-                    outline = [[p.x(), p.y()] for p in poly[0]]
             name = getattr(current_ghost, "name", "Country")
             area = getattr(current_ghost, "area_km2", 100000.0)
+            if hasattr(current_ghost, "wgs84_ring") and current_ghost.wgs84_ring:
+                outline = current_ghost.wgs84_ring
+            else:
+                geom = getattr(current_ghost, "current_wgs84", None) or getattr(current_ghost, "geom_wgs84", None)
+                if geom and not geom.isNull():
+                    with suppress(Exception):
+                        if geom.isMultipart():
+                            mpoly = geom.asMultiPolygon()
+                            if mpoly and mpoly[0] and mpoly[0][0]:
+                                outline = [[float(p.x()), float(p.y())] for p in mpoly[0][0]]
+                        else:
+                            poly = geom.asPolygon()
+                            if poly and poly[0]:
+                                outline = [[float(p.x()), float(p.y())] for p in poly[0]]
         else:
             records = self.world.records()
             rec = records[0] if records else {"name": "Greenland", "area_km2": 2166086.0, "ring": []}
@@ -764,7 +776,7 @@ class TrueSizeDockWidget(QDockWidget):
             "outline": outline,
         }
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Export Map Truth Lab HTML",
+            self, "Export Map Truth Lab HTML Report",
             f"Map_Truth_Lab_{country_data['name'].replace(' ', '_')}.html",
             "HTML File (*.html)")
         if not filename:
