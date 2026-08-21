@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from contextlib import suppress
 
-from .distortion import SHAPE_BANDS, AREA_BANDS, _grade, singular_values
+from .distortion import SHAPE_BANDS, AREA_BANDS, _grade
 from .geomath import clamp
 
 # Standard cartographic projection catalog with analytic / standard properties

@@ -124,11 +124,11 @@ def dock_color_tokens(palette: QPalette | None = None) -> dict[str, str]:
 
 
 _TOOL_ACCENT_COLORS = {
-    "truesize":    "#00897b",
-    "antipode":    "#3949ab",
+    "truesize": "#00897b",
+    "antipode": "#3949ab",
     "greatcircle": "#1565c0",
-    "fundist":     "#2e7d32",
-    "funarea":     "#2e7d32",
+    "fundist": "#2e7d32",
+    "funarea": "#2e7d32",
 }
 
 
@@ -136,11 +136,11 @@ def card_accent(key: str, dark: bool) -> str:
     """Return the per-tool card accent colour, adjusted for theme."""
     light_map = _TOOL_ACCENT_COLORS
     dark_map = {
-        "truesize":    "#4DB6AC",
-        "antipode":    "#7986CB",
+        "truesize": "#4DB6AC",
+        "antipode": "#7986CB",
         "greatcircle": "#64B5F6",
-        "fundist":     "#81C784",
-        "funarea":     "#81C784",
+        "fundist": "#81C784",
+        "funarea": "#81C784",
     }
     return dark_map.get(key, light_map.get(key, "#00897b")) if dark else light_map.get(key, _TOOL_ACCENT_COLORS["truesize"])
 

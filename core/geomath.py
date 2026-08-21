@@ -200,12 +200,6 @@ class LCG:
         return items
 
 
-def mercator_areal_inflation(lat: float) -> float:
-    """Areal inflation factor (sec^2 lat) on a spherical Mercator map."""
-    cos_lat = math.cos(math.radians(clamp(lat, -85.0, 85.0)))
-    return 1.0 / max(0.0025, cos_lat * cos_lat)
-
-
 def area_ratio_matrix(entities: list[dict]) -> list[dict]:
     """Compute pairwise true geodetic area ratios vs visual Mercator area ratios."""
     results = []
@@ -236,7 +230,7 @@ def area_ratio_matrix(entities: list[dict]) -> list[dict]:
 
 def od_matrix_grid(entities: list[dict]) -> dict:
     """Compute complete NxN Origin-Destination matrix of True Area, Mercator Area, and Distortion Factors."""
-    names = [e.get("name", f"Entity {i+1}") for i, e in enumerate(entities)]
+    names = [e.get("name", f"Entity {i + 1}") for i, e in enumerate(entities)]
     areas = [float(e.get("area_km2", 1.0)) for e in entities]
     lats = [float(e.get("lat", 0.0)) for e in entities]
     inflations = [mercator_areal_inflation(lat) for lat in lats]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+
 def validate_iso3(iso3: str) -> str:
     """Return a normalized ISO alpha-3 code or reject invalid input."""
     code = str(iso3 or "").strip().upper()

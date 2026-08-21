@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import html
-import json
-import math
 from pathlib import Path
 
 
@@ -137,7 +135,7 @@ footer {{
     <div class="card">
       <h2>📐 Mercator Latitude Inflation Simulator</h2>
       <p style="font-size:13px;color:var(--muted)">Drag to simulate how {name_a}'s apparent visual size inflates when shifted towards the poles on Web Mercator.</p>
-      
+
       <div class="slider-box">
         <div class="inflation-indicator" id="inf-text">1.00× at Equator (0°)</div>
         <input id="lat-slider" type="range" min="0" max="80" value="0" step="1">

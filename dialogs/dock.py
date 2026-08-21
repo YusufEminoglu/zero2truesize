@@ -42,7 +42,7 @@ from qgis.core import (
 
 from ..core.exporter import export_truth_lab_html
 from ..core.funits import FACTS, format_area_km2, format_km
-from ..core.geomath import LCG, area_ratio_matrix
+from ..core.geomath import LCG
 from ..core.recommender import recommend_projections
 from ..tools.support import from_wgs84
 from ..tools.tissot import DistortionHUD, crs_report_card, make_tissot_layer
@@ -552,8 +552,6 @@ class TrueSizeDockWidget(QDockWidget):
     def _zoom_to_world(self) -> None:
         canvas = self.iface.mapCanvas()
         with suppress(Exception):
-            from qgis.core import QgsRectangle
-
             from ..tools.support import from_wgs84
 
             # Clamp to ±85° so Mercator-style canvases do not blow up at the poles.

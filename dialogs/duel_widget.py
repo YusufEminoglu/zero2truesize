@@ -10,7 +10,6 @@ from qgis.PyQt.QtCore import QPointF, Qt, pyqtSignal
 from qgis.PyQt.QtGui import QColor, QPainter, QPainterPath, QPen
 from qgis.PyQt.QtWidgets import (
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
