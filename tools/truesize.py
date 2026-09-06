@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """The True Size drag tool.
 
-The classic thetruesize.com trick, done with real projections: the picked
+The classic thetruesize.com (James Talmage & Damon Maneice) trick, done with real projections: the picked
 polygon is transformed into a Lambert azimuthal equal-area plane centred on
 the grab point, optionally rotated, then inverse-projected through the same
 projection re-centred under the cursor. The ghost outline therefore always

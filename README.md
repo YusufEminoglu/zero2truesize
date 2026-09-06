@@ -103,6 +103,6 @@ not have ADM1 coverage; the panel then suggests ADM0.
 
 GPL-3.0 © [Yusuf Eminoğlu](https://github.com/YusufEminoglu) — bug reports and feature requests welcome in [Issues](https://github.com/YusufEminoglu/zero2truesize/issues).
 
-World outlines derived from QGIS's bundled Natural Earth data (public domain). Inspired by [thetruesize.com](https://thetruesize.com).
+World outlines derived from QGIS's bundled Natural Earth data (public domain). Inspired by [thetruesize.com](https://thetruesize.com) by James Talmage & Damon Maneice.
 ADM1 vectors come from [Natural Earth Admin 1 — States, Provinces](https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-1-states-provinces/)
 version 5.1.1 (public domain).

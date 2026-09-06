@@ -864,7 +864,8 @@ class TrueSizeDockWidget(QDockWidget):
             "fully offline.</p>"
             "<p>World outlines: <a href='https://www.naturalearthdata.com'>Natural Earth</a> "
             "(public domain), bundled. Inspired by "
-            "<a href='https://thetruesize.com'>thetruesize.com</a>.</p>"
+            "<a href='https://thetruesize.com'>thetruesize.com</a> "
+            "by James Talmage &amp; Damon Maneice.</p>"
             "<p><a href='https://github.com/YusufEminoglu/zero2truesize'>"
             "github.com/YusufEminoglu/zero2truesize</a></p>")
 
