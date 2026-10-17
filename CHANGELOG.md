@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0] - 2026-10-17
+
+### Added
+- **Redesigned 3D Studio Brand Icon**: New isometric 3D icon on a deep-teal circular pedestal depicting a frosted-cyan Mercator Greenland projecting down to its true, smaller terracotta size nested inside a 3D topographic Africa, complete with golden Tissot indicatrix ellipses and a glass geodesic arc.
+- **Spherical Equal-Area Ring Integration & Rhumb/Geodesic Bearings (`core/geomath.py`)**: Added `spherical_ring_area_km2` (latitude-band spherical excess integral accurate at high latitudes), `initial_bearing_deg`, `compass_direction`, `rhumb_bearing_deg`, `rhumb_distance_km`, and `great_circle_points`.
+- **Great Circle vs Rhumb-Line Compass Readout (`tools/greatcircle.py`, `dialogs/dock.py`)**: Route comparison now reports both initial great-circle forward azimuth and constant-compass rhumb-line (loxodrome) distance and bearing.
+- **Post-Drop Ghost Rotation, Reset & Double-Click Pan (`tools/truesize.py`, `dialogs/dock.py`)**: Added `↺ -15°`, `↻ +15°`, and `0°` rotation controls for dropped ghosts in the dock, fine `2°` rotation (`Shift+R`/`Shift+E`) and `0`/`Backspace` reset while carrying, double-click pan-to-ghost in the ghost list, and enriched exported ghost layers with `belgiums`, `source_lon`, `source_lat`, and `apparent_scale_vs_home`.
+- **Expanded CRS Recommender Catalog (`core/recommender.py`)**: Added `EPSG:8857` (Equal Earth), `ESRI:54042` (Winkel Tripel), `EPSG:5637` (TUREF / TM30 Türkiye), and `EPSG:3413` (NSIDC Polar Stereographic North) with regional latitude/longitude extent filtering.
+- **Dark-Theme Size Duel & 1-Click "Drop on Map" (`dialogs/duel_widget.py`, `dialogs/dock.py`)**: Made `ShapePanel` silhouettes palette-aware for QGIS Dark/Light themes with choice/latitude badges, added Mercator inflation multipliers on reveal, and added a `🗺 Drop on Map` button to drop the round's winner and visual trap side-by-side at the Equator.
+- **Interactive SVG Scaling & Multi-Ghost Table in HTML Truth Lab (`core/exporter.py`)**: Real-time SVG silhouette scaling on the Mercator latitude slider, Fun Units equivalence card, live canvas CRS report card integration, and an Active Canvas Ghosts comparison table.
+- **Headless QGIS Runtime Test Suite (`tests/test_qgis_runtime.py`)**: Added end-to-end headless QGIS verification covering LAEA area conservation, ghost rotation/export, Tissot generation, and UI dialogs on QGIS 3.44 LTR and QGIS 4.2.
+
 ## [0.4.6] - 2026-09-17
 
 - Upgraded official plugin icon to high-end tactile 3D brand identity (isometric 45°, slim teal pedestal, full bleed transparent canvas).

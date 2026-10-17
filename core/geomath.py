@@ -52,6 +52,80 @@ def destination(lat: float, lon: float, bearing_deg: float, dist_km: float) -> t
     return math.degrees(phi2), normalize_lon(math.degrees(lmb2))
 
 
+def initial_bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Initial forward azimuth (degrees [0, 360)) along the great circle from 1 to 2."""
+    p1 = math.radians(lat1)
+    p2 = math.radians(lat2)
+    dl = math.radians(normalize_lon(lon2 - lon1))
+    y = math.sin(dl) * math.cos(p2)
+    x = math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl)
+    if abs(x) < 1e-12 and abs(y) < 1e-12:
+        return 0.0
+    return (math.degrees(math.atan2(y, x)) + 360.0) % 360.0
+
+
+_COMPASS_16 = (
+    "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+    "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW",
+)
+
+
+def compass_direction(bearing_deg: float) -> str:
+    """Return 16-wind compass cardinal abbreviation for a bearing in degrees."""
+    idx = int(round((float(bearing_deg) % 360.0) / 22.5)) % 16
+    return _COMPASS_16[idx]
+
+
+def rhumb_bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Constant compass bearing (loxodrome / Mercator straight line) from 1 to 2."""
+    p1 = math.radians(clamp(lat1, -89.999, 89.999))
+    p2 = math.radians(clamp(lat2, -89.999, 89.999))
+    dlon = math.radians(normalize_lon(lon2 - lon1))
+    dpsi = math.log(math.tan(math.pi / 4.0 + p2 / 2.0) / math.tan(math.pi / 4.0 + p1 / 2.0))
+    if abs(dlon) < 1e-12 and abs(dpsi) < 1e-12:
+        return 0.0
+    return (math.degrees(math.atan2(dlon, dpsi)) + 360.0) % 360.0
+
+
+def rhumb_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """True spherical ground distance (km) along a constant-bearing rhumb line."""
+    p1 = math.radians(clamp(lat1, -89.999, 89.999))
+    p2 = math.radians(clamp(lat2, -89.999, 89.999))
+    dp = p2 - p1
+    dlon = math.radians(normalize_lon(lon2 - lon1))
+    dpsi = math.log(math.tan(math.pi / 4.0 + p2 / 2.0) / math.tan(math.pi / 4.0 + p1 / 2.0))
+    q = dp / dpsi if abs(dpsi) > 1e-10 else math.cos(p1)
+    return math.hypot(dp, q * dlon) * R_EARTH_KM
+
+
+def great_circle_points(lat1: float, lon1: float, lat2: float, lon2: float,
+                        n_points: int = 64) -> list[tuple[float, float]]:
+    """Interpolate (lon, lat) waypoints along the shortest great-circle arc."""
+    n = max(2, int(n_points))
+    p1, l1 = math.radians(lat1), math.radians(lon1)
+    p2, l2 = math.radians(lat2), math.radians(lon2)
+    # 3D unit vectors on the sphere
+    v1 = (math.cos(p1) * math.cos(l1), math.cos(p1) * math.sin(l1), math.sin(p1))
+    v2 = (math.cos(p2) * math.cos(l2), math.cos(p2) * math.sin(l2), math.sin(p2))
+    dot = clamp(v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2], -1.0, 1.0)
+    omega = math.acos(dot)
+    if omega < 1e-9:
+        return [(lon1, lat1), (lon2, lat2)]
+    sin_om = math.sin(omega)
+    pts: list[tuple[float, float]] = []
+    for i in range(n):
+        t = i / (n - 1)
+        a = math.sin((1.0 - t) * omega) / sin_om
+        b = math.sin(t * omega) / sin_om
+        x = a * v1[0] + b * v2[0]
+        y = a * v1[1] + b * v2[1]
+        z = a * v1[2] + b * v2[2]
+        lat = math.degrees(math.atan2(z, math.hypot(x, y)))
+        lon = normalize_lon(math.degrees(math.atan2(y, x)))
+        pts.append((lon, lat))
+    return pts
+
+
 def circle_ring(lat: float, lon: float, radius_km: float, segments: int = 72) -> list[tuple[float, float]]:
     """Closed ring of (lon, lat) vertices of a constant ground-radius circle."""
     ring = []
@@ -114,16 +188,28 @@ def shoelace_area(points: list[tuple[float, float]]) -> float:
     return total / 2.0
 
 
-def approx_ring_area_km2(ring: list[tuple[float, float]]) -> float:
-    """Rough true area of a lon/lat ring: equirectangular shoelace scaled at
-    the ring's mean latitude. Plenty for ranking polygon parts by size."""
+def spherical_ring_area_km2(ring: list[tuple[float, float]]) -> float:
+    """True spherical surface area (km2) of a closed lon/lat ring via latitude-band
+    integration (Chamberlain & Duquette spherical excess approximation). Accurate at
+    all latitudes including high-latitude landmasses like Greenland and Russia."""
     if len(ring) < 4:
         return 0.0
     unwrapped = unwrap_ring(ring)
-    mean_lat = sum(p[1] for p in unwrapped) / len(unwrapped)
-    kx = 111.320 * math.cos(math.radians(clamp(mean_lat, -89.0, 89.0)))
-    ky = 110.574
-    return abs(shoelace_area([(p[0] * kx, p[1] * ky) for p in unwrapped]))
+    count = len(unwrapped)
+    total = 0.0
+    for i in range(count):
+        lon1, lat1 = unwrapped[i]
+        lon2, lat2 = unwrapped[(i + 1) % count]
+        dlon_rad = math.radians(lon2 - lon1)
+        sin_sum = math.sin(math.radians(clamp(lat1, -90.0, 90.0))) + math.sin(math.radians(clamp(lat2, -90.0, 90.0)))
+        total += dlon_rad * sin_sum
+    return abs(total) * 0.5 * (R_EARTH_KM ** 2)
+
+
+def approx_ring_area_km2(ring: list[tuple[float, float]]) -> float:
+    """True spherical area of a lon/lat ring (km2), preserving latitude-dependent
+    convergence across wide latitude spans."""
+    return spherical_ring_area_km2(ring)
 
 
 def outer_rings(geometry: dict) -> list[list[tuple[float, float]]]:

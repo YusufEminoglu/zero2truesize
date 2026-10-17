@@ -7,9 +7,10 @@ from __future__ import annotations
 import time
 
 from qgis.PyQt.QtCore import QPointF, Qt, pyqtSignal
-from qgis.PyQt.QtGui import QColor, QPainter, QPainterPath, QPen
+from qgis.PyQt.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen
 from qgis.PyQt.QtWidgets import (
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -19,15 +20,18 @@ from qgis.PyQt.QtWidgets import (
 from qgis.core import QgsSettings
 
 from ..core.funits import format_area_km2
-from ..core.geomath import mercator_xy
+from ..core.geomath import mercator_areal_inflation, mercator_xy
 from ..core.quiz import CHOICE_KEYS, SizeDuel
 
 BEST_STREAK_KEY = "zero2truesize/duel_best_streak"
 
-CARD_BG = QColor(255, 255, 255)
-CARD_BORDER = QColor(215, 224, 231)
-HOVER_BORDER = QColor(0, 137, 123)
-SHAPE_FILL = QColor(69, 90, 100, 215)
+CARD_BG_LIGHT = QColor(255, 255, 255)
+CARD_BG_DARK = QColor(22, 32, 46)
+CARD_BORDER_LIGHT = QColor(215, 224, 231)
+CARD_BORDER_DARK = QColor(48, 66, 88)
+HOVER_BORDER = QColor(0, 150, 136)
+SHAPE_FILL_LIGHT = QColor(55, 71, 79, 215)
+SHAPE_FILL_DARK = QColor(77, 182, 172, 210)
 WIN_BORDER = QColor(46, 125, 50)
 LOSE_BORDER = QColor(198, 40, 40)
 
@@ -37,8 +41,10 @@ class ShapePanel(QWidget):
 
     clicked = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(self, badge: str = "", parent=None):
         super().__init__(parent)
+        self._badge = badge
+        self._lat_badge = ""
         self._path: QPainterPath | None = None
         self._state: str | None = None
         self._hover = False
@@ -63,7 +69,8 @@ class ShapePanel(QWidget):
         self._hover = False
         self.update()
 
-    def set_shape(self, merc_points: list[tuple[float, float]], scale: float = 0.0) -> None:
+    def set_shape(self, merc_points: list[tuple[float, float]], scale: float = 0.0,
+                  lat_deg: float | None = None) -> None:
         path = QPainterPath()
         if merc_points:
             xs = [p[0] for p in merc_points]
@@ -87,6 +94,11 @@ class ShapePanel(QWidget):
                     path.lineTo(QPointF(px, py))
             path.closeSubpath()
         self._path = path
+        if lat_deg is not None:
+            hemi = "N" if lat_deg >= 0 else "S"
+            self._lat_badge = f"{abs(lat_deg):.0f}°{hemi}"
+        else:
+            self._lat_badge = ""
         self._state = None
         self.update()
 
@@ -98,8 +110,11 @@ class ShapePanel(QWidget):
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        dark = self.palette().color(QPalette.ColorRole.Window).lightness() < 128
         rect = self.rect().adjusted(2, 2, -2, -2)
-        border = CARD_BORDER
+        border = CARD_BORDER_DARK if dark else CARD_BORDER_LIGHT
+        card_bg = CARD_BG_DARK if dark else CARD_BG_LIGHT
+        shape_fill = SHAPE_FILL_DARK if dark else SHAPE_FILL_LIGHT
         width = 1
         if self._state == "win":
             border, width = WIN_BORDER, 3
@@ -108,15 +123,22 @@ class ShapePanel(QWidget):
         elif self._hover and self._clickable:
             border, width = HOVER_BORDER, 2
         painter.setPen(QPen(border, width))
-        painter.setBrush(CARD_BG)
+        painter.setBrush(card_bg)
         painter.drawRoundedRect(rect, 8, 8)
         if self._path is not None:
             painter.save()
             painter.translate(rect.center())
-            painter.setPen(QPen(SHAPE_FILL.darker(130), 1))
-            painter.setBrush(SHAPE_FILL)
+            painter.setPen(QPen(shape_fill.darker(135), 1.2))
+            painter.setBrush(shape_fill)
             painter.drawPath(self._path)
             painter.restore()
+        # Draw subtle choice badge in top-left and revealed latitude in top-right
+        badge_color = QColor(144, 164, 174) if dark else QColor(120, 144, 156)
+        painter.setPen(badge_color)
+        if self._badge:
+            painter.drawText(rect.adjusted(7, 4, -6, -4), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft, self._badge)
+        if self._lat_badge and self._state is not None:
+            painter.drawText(rect.adjusted(6, 4, -7, -4), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight, self._lat_badge)
         painter.end()
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 (Qt API)
@@ -128,10 +150,13 @@ class ShapePanel(QWidget):
 class DuelWidget(QWidget):
     """The 4-choice Size Duel tab."""
 
+    compare_on_map = pyqtSignal(dict, dict)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._engine: SizeDuel | None = None
         self._round: dict[str, dict] | None = None
+        self._last_result: dict | None = None
         self._accepting = False
         self._panels: dict[str, ShapePanel] = {}
         self._labels: dict[str, QLabel] = {}
@@ -153,7 +178,7 @@ class DuelWidget(QWidget):
         for i, key in enumerate(CHOICE_KEYS):
             r, c = divmod(i, 2)
             col = QVBoxLayout()
-            panel = ShapePanel(self)
+            panel = ShapePanel(badge=key.upper(), parent=self)
             panel.clicked.connect(lambda k=key: self._on_guess(k))
             self._panels[key] = panel
             col.addWidget(panel)
@@ -176,10 +201,18 @@ class DuelWidget(QWidget):
         self.stats.setStyleSheet("color: #78909c; background: transparent;")
         root.addWidget(self.stats)
 
+        btn_row = QHBoxLayout()
+        self.compare_button = QPushButton("🗺 Drop on Map")
+        self.compare_button.setToolTip("Drop this round's true winner and Mercator visual trap onto the canvas to compare them side by side.")
+        self.compare_button.setEnabled(False)
+        self.compare_button.clicked.connect(self._emit_compare_on_map)
+        btn_row.addWidget(self.compare_button)
+
         self.next_button = QPushButton("Skip round")
         self.next_button.setProperty("class", "primary")
         self.next_button.clicked.connect(self.new_round)
-        root.addWidget(self.next_button)
+        btn_row.addWidget(self.next_button, 1)
+        root.addLayout(btn_row)
         root.addStretch(1)
 
     # ── engine wiring ─────────────────────────────────────────────────
@@ -199,6 +232,8 @@ class DuelWidget(QWidget):
         if self._engine is None:
             return
         self._round = self._engine.next_round()
+        self._last_result = None
+        self.compare_button.setEnabled(False)
         if self._round is None:
             self.result.setText("Not enough countries to play with.")
             return
@@ -207,7 +242,7 @@ class DuelWidget(QWidget):
             c = self._round[key]
             merc_pts = [mercator_xy(lat, lon) for lon, lat in c["ring"]]
             # Fit each country to its own bounding box so they fill their cards equally
-            self._panels[key].set_shape(merc_pts)
+            self._panels[key].set_shape(merc_pts, lat_deg=float(c.get("lat", 0.0)))
             self._panels[key].set_clickable(True)
             self._panels[key].set_state(None)
             self._labels[key].setText(f"<b>{c['name']}</b>")
@@ -224,6 +259,8 @@ class DuelWidget(QWidget):
         if result is None:
             return
         self._accepting = False
+        self._last_result = result
+        self.compare_button.setEnabled(True)
         for panel in self._panels.values():
             panel.set_clickable(False)
         self.next_button.setText("▶ Next round")
@@ -235,17 +272,23 @@ class DuelWidget(QWidget):
             elif k == key and not result["correct"]:
                 self._panels[k].set_state("lose")
             else:
-                self._panels[k].set_state(None)
+                self._panels[k].set_state("revealed")
 
             c_info = result["countries"][k]
+            lat_val = float(c_info.get("lat", 0.0))
+            inf_val = mercator_areal_inflation(lat_val)
             self._labels[k].setText(
-                f"<b>{c_info['name']}</b><br>{format_area_km2(float(c_info['area_km2']))}"
+                f"<b>{c_info['name']}</b><br>{format_area_km2(float(c_info['area_km2']))} "
+                f"<span style='color:#78909c; font-size:8pt;'>(×{inf_val:.1f} Merc)</span>"
             )
 
         winner = result["winner"]
+        runner_up = result["runner_up"]
         verdict = ("<span style='color:#2e7d32;'><b>✔ Correct!</b></span>" if result["correct"]
                    else "<span style='color:#c62828;'><b>✘ Not quite!</b></span>")
-        text = f"{verdict} <b>{winner['name']}</b> is the true winner ({format_area_km2(float(winner['area_km2']))})."
+        text = (f"{verdict} <b>{winner['name']}</b> is the true winner "
+                f"({format_area_km2(float(winner['area_km2']))}, "
+                f"{result['ratio_vs_runner_up']:.2f}× larger than runner-up {runner_up['name']}).")
         if result["deceptive"]:
             vis_winner = result["visual_winner"]
             text += (f"<br><i>Mercator deception: {vis_winner['name']} was drawn visually largest "
@@ -255,6 +298,16 @@ class DuelWidget(QWidget):
         self._update_stats()
         QgsSettings().setValue(BEST_STREAK_KEY, self._engine.best_streak)
 
+    def _emit_compare_on_map(self) -> None:
+        if not self._last_result:
+            return
+        winner = self._last_result.get("winner")
+        other = self._last_result.get("visual_winner")
+        if other and winner and other.get("name") == winner.get("name"):
+            other = self._last_result.get("runner_up")
+        if winner and other:
+            self.compare_on_map.emit(dict(winner), dict(other))
+
     def _update_stats(self) -> None:
         if self._engine is None:
             return
@@ -263,3 +316,4 @@ class DuelWidget(QWidget):
             f"Round {round_no} · score {self._engine.correct_count}/"
             f"{self._engine.rounds} · streak {self._engine.streak} · "
             f"best {self._engine.best_streak}")
+

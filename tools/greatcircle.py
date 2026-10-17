@@ -11,6 +11,12 @@ from qgis.PyQt.QtGui import QColor
 from qgis.core import QgsGeometry, QgsPointXY, QgsWkbTypes
 from qgis.gui import QgsMapTool, QgsRubberBand, QgsVertexMarker
 
+from ..core.geomath import (
+    compass_direction,
+    initial_bearing_deg,
+    rhumb_bearing_deg,
+    rhumb_distance_km,
+)
 from .support import from_wgs84, geodesic_calculator, to_wgs84
 
 GEODESIC_COLOR = QColor(21, 101, 192)   # blue: the honest path
@@ -86,10 +92,18 @@ class GreatCircleTool(QgsMapTool):
             straight_km = self._straight_ground_km(a_map, b_map, calc)
 
         geodesic_km = geodesic_m / 1000.0
+        gc_brg = initial_bearing_deg(a.y(), a.x(), b.y(), b.x())
+        rh_brg = rhumb_bearing_deg(a.y(), a.x(), b.y(), b.x())
+        rh_km = rhumb_distance_km(a.y(), a.x(), b.y(), b.x())
         payload = {
             "a_lon": a.x(), "a_lat": a.y(), "b_lon": b.x(), "b_lat": b.y(),
             "geodesic_km": geodesic_km,
             "straight_km": straight_km,
+            "gc_bearing_deg": gc_brg,
+            "gc_cardinal": compass_direction(gc_brg),
+            "rhumb_bearing_deg": rh_brg,
+            "rhumb_cardinal": compass_direction(rh_brg),
+            "rhumb_km": rh_km,
         }
         if straight_km is not None and geodesic_km > 0:
             saved = max(0.0, straight_km - geodesic_km)

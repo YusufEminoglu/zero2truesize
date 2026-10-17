@@ -111,6 +111,31 @@ class TestGeomath(unittest.TestCase):
         self.assertLessEqual(len(thin), 302)
         self.assertEqual(thin[0], thin[-1])
 
+    def test_bearings_and_rhumb(self):
+        # Due east along the equator: both great circle and rhumb bearing are 90 deg (E)
+        brg = geomath.initial_bearing_deg(0.0, 10.0, 0.0, 20.0)
+        self.assertAlmostEqual(brg, 90.0, delta=0.01)
+        self.assertEqual(geomath.compass_direction(brg), "E")
+        rh_brg = geomath.rhumb_bearing_deg(0.0, 10.0, 0.0, 20.0)
+        self.assertAlmostEqual(rh_brg, 90.0, delta=0.01)
+        # At 60N, a rhumb line due east is longer than the great-circle shortcut
+        gc_km = geomath.haversine_km(60.0, -30.0, 60.0, 30.0)
+        rh_km = geomath.rhumb_distance_km(60.0, -30.0, 60.0, 30.0)
+        self.assertGreater(rh_km, gc_km)
+        pts = geomath.great_circle_points(41.0, 29.0, 40.7, -74.0, n_points=16)
+        self.assertEqual(len(pts), 16)
+        self.assertAlmostEqual(pts[0][0], 29.0, delta=1e-4)
+        self.assertAlmostEqual(pts[-1][0], -74.0, delta=1e-4)
+
+    def test_spherical_ring_area_high_lat(self):
+        # At 60N, a 1x1 deg cell has cos(60)=0.5 of the equatorial cell area
+        eq_ring = [(0, 0), (1, 0), (1, 1), (0, 1), (0, 0)]
+        lat60_ring = [(0, 60), (1, 60), (1, 61), (0, 61), (0, 60)]
+        eq_area = geomath.spherical_ring_area_km2(eq_ring)
+        lat60_area = geomath.spherical_ring_area_km2(lat60_ring)
+        self.assertLess(lat60_area, eq_area * 0.52)
+        self.assertGreater(lat60_area, eq_area * 0.47)
+
     def test_lcg(self):
         a = geomath.LCG(42)
         b = geomath.LCG(42)
@@ -251,7 +276,16 @@ class TestRecommender(unittest.TestCase):
     def test_equal_area_recommendation(self):
         ea_recs = recommender.recommend_projections(min_lat=-40.0, max_lat=50.0, purpose="Equal-Area")
         self.assertTrue(all(r["family"] == "Equal-Area" for r in ea_recs))
-        self.assertTrue(any("Mollweide" in r["name"] or "Eckert" in r["name"] for r in ea_recs))
+        self.assertTrue(any("Equal Earth" in r["name"] or "Mollweide" in r["name"] for r in ea_recs))
+
+    def test_regional_turkiye_recommendation(self):
+        tr_recs = recommender.recommend_projections(
+            min_lat=36.0, max_lat=42.0, purpose="Conformal", min_lon=26.0, max_lon=44.0
+        )
+        self.assertTrue(any(r["auth_id"] == "EPSG:5637" for r in tr_recs))
+        # Global southern extent should exclude regional EPSG:5637
+        south_recs = recommender.recommend_projections(min_lat=-50.0, max_lat=-10.0, purpose="All")
+        self.assertFalse(any(r["auth_id"] == "EPSG:5637" for r in south_recs))
 
 
 class TestAreaMatrix(unittest.TestCase):
@@ -288,14 +322,21 @@ class TestHtmlExporter(unittest.TestCase):
             "name": "Greenland",
             "iso_a3": "GRL",
             "area_km2": 2166086.0,
+            "lat": 72.0,
             "outline": [[-40.0, 60.0], [-30.0, 70.0], [-50.0, 75.0], [-40.0, 60.0]],
         }
-        html_doc = exporter.generate_truth_lab_html(country)
+        ghosts = [
+            {"name": "Greenland", "area_km2": 2166086.0, "src_lat": 72.0, "lat": 0.0, "looks": 1.0, "rotation": 15.0}
+        ]
+        html_doc = exporter.generate_truth_lab_html(country, ghosts=ghosts)
         self.assertIn("<!doctype html>", html_doc)
         self.assertIn("Greenland", html_doc)
         self.assertIn("Map Truth Lab", html_doc)
         self.assertIn("Mercator Latitude Inflation Simulator", html_doc)
+        self.assertIn("Fun Units &amp; Tangible Scale", html_doc)
+        self.assertIn("Active Canvas Ghosts Comparison", html_doc)
 
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+

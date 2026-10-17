@@ -166,6 +166,8 @@ class Ghost:
             text += f" — this map draws it ×{self.looks:.2f} larger than at home"
         elif self.looks <= 0.95 and self.looks > 0:
             text += f" — this map draws it ×{1.0 / self.looks:.2f} smaller than at home"
+        if abs(self.rotation) >= 0.5:
+            text += f" · rotated {self.rotation:.0f}°"
         return text
 
 
@@ -229,6 +231,16 @@ class TrueSizeManager(QObject):
         self.ghosts.append(ghost)
         self.changed.emit()
 
+    def rotate_at(self, index: int, delta_deg: float = 0.0, reset: bool = False) -> bool:
+        """Rotate or reset a dropped ghost in place and emit changed."""
+        if not (0 <= index < len(self.ghosts)):
+            return False
+        ghost = self.ghosts[index]
+        ghost.rotation = 0.0 if reset else (ghost.rotation + delta_deg) % 360.0
+        ok = self.update_ghost(ghost)
+        self.changed.emit()
+        return ok
+
     def remove_at(self, index: int) -> None:
         if 0 <= index < len(self.ghosts):
             ghost = self.ghosts.pop(index)
@@ -259,7 +271,10 @@ class TrueSizeManager(QObject):
             return None
         uri = ("MultiPolygon?crs=EPSG:4326"
                "&field=name:string(100)&field=true_area_km2:double"
-               "&field=rotation_deg:double&field=dropped_lon:double&field=dropped_lat:double")
+               "&field=belgiums:string(32)"
+               "&field=rotation_deg:double&field=source_lon:double&field=source_lat:double"
+               "&field=dropped_lon:double&field=dropped_lat:double"
+               "&field=apparent_scale_vs_home:double")
         layer = QgsVectorLayer(uri, "True Size ghosts — 02truesize", "memory")
         features = []
         for ghost in self.ghosts:
@@ -270,14 +285,18 @@ class TrueSizeManager(QObject):
             feature.setAttributes([
                 ghost.name,
                 round(ghost.area_km2, 1),
+                belgiums(ghost.area_km2),
                 round(ghost.rotation, 1),
+                round(ghost.src_anchor.x(), 5),
+                round(ghost.src_anchor.y(), 5),
                 round(ghost.dst_anchor.x(), 5),
                 round(ghost.dst_anchor.y(), 5),
+                round(ghost.looks, 3),
             ])
             features.append(feature)
         layer.dataProvider().addFeatures(features)
         layer.updateExtents()
-        layer.setOpacity(0.75)
+        layer.setOpacity(0.78)
         QgsProject.instance().addMapLayer(layer)
         return layer
 
@@ -446,10 +465,13 @@ class TrueSizePickTool(QgsMapTool):
         if self._carry is None:
             return
         key = event.key()
+        step = 2.0 if bool(event.modifiers() & Qt.KeyboardModifier.ShiftModifier) else 10.0
         if key == Qt.Key.Key_R:
-            self._carry.rotation = (self._carry.rotation + 10.0) % 360.0
+            self._carry.rotation = (self._carry.rotation + step) % 360.0
         elif key == Qt.Key.Key_E:
-            self._carry.rotation = (self._carry.rotation - 10.0) % 360.0
+            self._carry.rotation = (self._carry.rotation - step) % 360.0
+        elif key in (Qt.Key.Key_0, Qt.Key.Key_Backspace):
+            self._carry.rotation = 0.0
         elif key == Qt.Key.Key_Escape:
             self._cancel()
             self.message.emit("Cancelled.")

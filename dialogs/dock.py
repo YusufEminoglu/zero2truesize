@@ -272,7 +272,7 @@ class TrueSizeDockWidget(QDockWidget):
         self._register_tool_button("truesize", pick)
         drag_layout.addWidget(pick)
 
-        hint = QLabel("Click grabs · click again drops · R / E rotates · right-click cancels")
+        hint = QLabel("Click grabs · click again drops · R/E rotates (Shift=2°, 0=reset) · right-click cancels")
         hint.setWordWrap(True)
         hint.setStyleSheet(IDLE_STYLE)
         drag_layout.addWidget(hint)
@@ -285,13 +285,29 @@ class TrueSizeDockWidget(QDockWidget):
 
         self.ghost_list = QListWidget()
         self.ghost_list.setMaximumHeight(150)
+        self.ghost_list.setToolTip("Double-click any dropped ghost to pan the map canvas to it.")
+        self.ghost_list.itemDoubleClicked.connect(self._zoom_to_ghost)
         layout.addWidget(self.ghost_list)
 
         ghost_actions = QHBoxLayout()
-        remove = QPushButton("Remove selected")
+        rot_ccw = QPushButton("↺ -15°")
+        rot_ccw.setToolTip("Rotate selected ghost 15° counter-clockwise")
+        rot_ccw.clicked.connect(lambda: self._rotate_selected_ghost(-15.0))
+        rot_cw = QPushButton("↻ +15°")
+        rot_cw.setToolTip("Rotate selected ghost 15° clockwise")
+        rot_cw.clicked.connect(lambda: self._rotate_selected_ghost(15.0))
+        rot_zero = QPushButton("0°")
+        rot_zero.setToolTip("Reset selected ghost rotation to 0°")
+        rot_zero.clicked.connect(lambda: self._rotate_selected_ghost(0.0, reset=True))
+        remove = QPushButton("Remove")
+        remove.setToolTip("Remove selected ghost from canvas")
         remove.clicked.connect(self._remove_selected_ghost)
         save = QPushButton("Save as layer")
+        save.setToolTip("Export all dropped ghosts as a memory vector layer")
         save.clicked.connect(self._export_ghosts)
+        ghost_actions.addWidget(rot_ccw)
+        ghost_actions.addWidget(rot_cw)
+        ghost_actions.addWidget(rot_zero)
         ghost_actions.addWidget(remove)
         ghost_actions.addWidget(save)
         layout.addLayout(ghost_actions)
@@ -326,6 +342,7 @@ class TrueSizeDockWidget(QDockWidget):
         self.duel = DuelWidget()
         records = self.world.records()
         self.duel.set_countries(records)
+        self.duel.compare_on_map.connect(self._on_duel_compare_on_map)
         return self._wrap_scroll(self.duel)
 
     def _build_truth_tab(self) -> QWidget:
@@ -592,16 +609,83 @@ class TrueSizeDockWidget(QDockWidget):
         self.admin_status.setText(message)
 
     def _refresh_ghost_list(self) -> None:
+        current_row = self.ghost_list.currentRow()
         self.ghost_list.clear()
         for ghost in self.manager.ghosts:
             r, g, b = ghost.color
             pixmap = QPixmap(QSize(12, 12))
             pixmap.fill(QColor(r, g, b))
             looks = f" · drawn ×{ghost.looks:.2f}" if abs(ghost.looks - 1.0) >= 0.05 else ""
+            rot = f" · ↻{ghost.rotation:.0f}°" if abs(ghost.rotation) >= 0.5 else ""
             item = QListWidgetItem(QIcon(pixmap),
-                                   f"{ghost.name} · {format_area_km2(ghost.area_km2)}{looks}")
+                                   f"{ghost.name} · {format_area_km2(ghost.area_km2)}{looks}{rot}")
             item.setToolTip(ghost.label())
             self.ghost_list.addItem(item)
+        if 0 <= current_row < self.ghost_list.count():
+            self.ghost_list.setCurrentRow(current_row)
+        elif self.ghost_list.count() > 0:
+            self.ghost_list.setCurrentRow(self.ghost_list.count() - 1)
+
+    def _rotate_selected_ghost(self, delta_deg: float, reset: bool = False) -> None:
+        row = self.ghost_list.currentRow()
+        if row < 0 and self.manager.ghosts:
+            row = len(self.manager.ghosts) - 1
+        if row >= 0 and self.manager.rotate_at(row, delta_deg=delta_deg, reset=reset):
+            ghost = self.manager.ghosts[row]
+            self.truesize_status.setText(f"Updated: {ghost.label()}")
+
+    def _zoom_to_ghost(self, _item: QListWidgetItem) -> None:
+        row = self.ghost_list.currentRow()
+        if not (0 <= row < len(self.manager.ghosts)):
+            return
+        ghost = self.manager.ghosts[row]
+        canvas = self.iface.mapCanvas()
+        with suppress(Exception):
+            pt = from_wgs84(canvas.mapSettings().destinationCrs()).transform(ghost.dst_anchor)
+            canvas.setCenter(pt)
+            canvas.refresh()
+            self.truesize_status.setText(f"Centered on {ghost.label()}.")
+
+    def _on_duel_compare_on_map(self, winner: dict, other: dict) -> None:
+        from ..tools.truesize import Ghost
+
+        self.ensure_world_layer_visible()
+        layer = self.world.layer()
+        if layer is None:
+            return
+        dropped_names = []
+        for idx, rec in enumerate((winner, other)):
+            feat = self.world.country_feature_by_iso(str(rec.get("iso") or ""))
+            if feat is None:
+                for f in layer.getFeatures():
+                    if str(f.attribute("name") or "") == str(rec.get("name") or ""):
+                        feat = f
+                        break
+            if feat is None or feat.geometry() is None:
+                continue
+            geom = feat.geometry().makeValid()
+            src_pt = QgsPointXY(float(rec.get("lon", 0.0)), float(rec.get("lat", 0.0)))
+            ghost = Ghost(
+                str(rec.get("name", "Country")),
+                geom,
+                src_pt,
+                float(rec.get("area_km2", 0.0)),
+                self.manager.next_color(),
+            )
+            ghost.dst_anchor = QgsPointXY(-14.0 if idx == 0 else 14.0, 0.0)
+            self.manager.adopt(ghost)
+            dropped_names.append(ghost.name)
+
+        if dropped_names:
+            self.tabs.setCurrentIndex(0)
+            canvas = self.iface.mapCanvas()
+            with suppress(Exception):
+                pt = from_wgs84(canvas.mapSettings().destinationCrs()).transform(QgsPointXY(0.0, 0.0))
+                canvas.setCenter(pt)
+                canvas.refresh()
+            self.truesize_status.setText(
+                f"Dropped Duel pair at the Equator (0°): {' vs '.join(dropped_names)}. "
+                "Compare their true ground areas side by side!")
 
     def _remove_selected_ghost(self) -> None:
         row = self.ghost_list.currentRow()
@@ -662,10 +746,19 @@ class TrueSizeDockWidget(QDockWidget):
 
     def show_greatcircle(self, res: dict) -> None:
         geodesic = res.get("geodesic_km") or 0.0
-        text = f"<b>Great circle:</b> {format_km(geodesic)}."
+        gc_brg = res.get("gc_bearing_deg")
+        gc_card = res.get("gc_cardinal")
+        brg_info = f" (initial azimuth {gc_brg:.0f}° {gc_card})" if gc_brg is not None and gc_card else ""
+        text = f"<b>Great circle:</b> {format_km(geodesic)}{brg_info}."
         straight = res.get("straight_km")
         if straight is not None:
             text += f"<br><b>The map's straight line:</b> {format_km(straight)} of actual ground."
+        rh_brg = res.get("rhumb_bearing_deg")
+        rh_card = res.get("rhumb_cardinal")
+        rh_km = res.get("rhumb_km")
+        if rh_brg is not None and rh_card and rh_km is not None:
+            text += (f"<br><b>Constant compass (rhumb):</b> {format_km(rh_km)} "
+                     f"at {rh_brg:.0f}° {rh_card}.")
         saved = res.get("saved_km")
         if saved is not None:
             if saved < 5.0:
@@ -737,6 +830,7 @@ class TrueSizeDockWidget(QDockWidget):
         outline = []
         name = "Greenland"
         area = 2166086.0
+        home_lat = 72.0
 
         if ghosts:
             if len(ghosts) == 1:
@@ -745,7 +839,7 @@ class TrueSizeDockWidget(QDockWidget):
                 ghost_labels = [f"{g.name} ({g.area_km2:,.0f} km² at {g.dst_anchor.y():.1f}°)" for g in ghosts]
                 chosen_label, ok = QInputDialog.getItem(
                     self, "Select Country Ghost for Report",
-                    "Choose which active canvas ghost to export into the Map Truth Lab HTML report:",
+                    "Choose which active canvas ghost to feature in the Map Truth Lab HTML report:",
                     ghost_labels, 0, False
                 )
                 if not ok or not chosen_label:
@@ -755,6 +849,7 @@ class TrueSizeDockWidget(QDockWidget):
 
             name = getattr(chosen_ghost, "name", "Country")
             area = getattr(chosen_ghost, "area_km2", 100000.0)
+            home_lat = float(chosen_ghost.src_anchor.y()) if hasattr(chosen_ghost, "src_anchor") else 0.0
             if hasattr(chosen_ghost, "wgs84_ring") and chosen_ghost.wgs84_ring:
                 outline = chosen_ghost.wgs84_ring
             else:
@@ -792,14 +887,28 @@ class TrueSizeDockWidget(QDockWidget):
                 return
             name = rec["name"]
             area = rec.get("area_km2", 100000.0)
+            home_lat = float(rec.get("lat", 0.0))
             outline = rec.get("ring", [])
 
         country_data = {
             "name": name,
             "iso_a3": name[:3].upper(),
             "area_km2": float(area),
+            "lat": float(home_lat),
             "outline": outline,
         }
+        ghost_records = [
+            {
+                "name": g.name,
+                "area_km2": float(g.area_km2),
+                "src_lat": float(g.src_anchor.y()) if hasattr(g, "src_anchor") else 0.0,
+                "lat": float(g.dst_anchor.y()) if hasattr(g, "dst_anchor") else 0.0,
+                "looks": float(getattr(g, "looks", 1.0)),
+                "rotation": float(getattr(g, "rotation", 0.0)),
+            }
+            for g in ghosts
+        ]
+        card = crs_report_card(self.iface.mapCanvas())
         filename, _ = QFileDialog.getSaveFileName(
             self, "Export Map Truth Lab HTML Report",
             f"Map_Truth_Lab_{country_data['name'].replace(' ', '_')}.html",
@@ -809,7 +918,12 @@ class TrueSizeDockWidget(QDockWidget):
         if not filename.lower().endswith(".html"):
             filename += ".html"
         try:
-            export_truth_lab_html(filename, country_data)
+            export_truth_lab_html(
+                filename,
+                country_data,
+                report_card=card,
+                ghosts=ghost_records if ghost_records else None,
+            )
             self.truesize_status.setText(f"Truth Lab HTML saved to: {filename}")
         except Exception as exc:
             QMessageBox.critical(self, PLUGIN_TITLE, f"Export failed: {exc}")
@@ -824,14 +938,20 @@ class TrueSizeDockWidget(QDockWidget):
             wgs84_extent = tr.transformBoundingBox(extent)
             min_lat = max(-80.0, min(80.0, wgs84_extent.yMinimum()))
             max_lat = max(-80.0, min(80.0, wgs84_extent.yMaximum()))
+            min_lon = max(-180.0, min(180.0, wgs84_extent.xMinimum()))
+            max_lon = max(-180.0, min(180.0, wgs84_extent.xMaximum()))
             if min_lat >= max_lat:
                 min_lat, max_lat = -50.0, 60.0
             purpose = self.rec_purpose_combo.currentText()
-            recs = recommend_projections(min_lat, max_lat, purpose=purpose)
+            recs = recommend_projections(
+                min_lat, max_lat, purpose=purpose,
+                min_lon=min_lon, max_lon=max_lon,
+            )
             self.rec_list.clear()
             for r in recs:
+                reg_tag = " [Regional]" if r.get("regional") else ""
                 item = QListWidgetItem(
-                    f"[{r['score']} pts] {r['auth_id']} · {r['name']} ({r['family']})\n"
+                    f"[{r['score']} pts] {r['auth_id']} · {r['name']} ({r['family']}){reg_tag}\n"
                     f"   Area: {r['area_grade']} (×{r['area_spread']}) · Shape: {r['shape_grade']} (max {r['max_omega_deg']}°)")
                 item.setData(Qt.ItemDataRole.UserRole, r["auth_id"])
                 self.rec_list.addItem(item)
