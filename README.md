@@ -9,7 +9,7 @@
 [![QGIS](https://img.shields.io/badge/QGIS-3.28%2B-93b023?logo=qgis&logoColor=white)](https://plugins.qgis.org/plugins/zero2truesize/)
 [![Documentation](https://img.shields.io/badge/📖_Reference_Manual-13a0a0)](https://geophilo.com/zero2truesize/)
 [![Version](https://img.shields.io/github/v/tag/YusufEminoglu/zero2truesize?label=version&color=blue)](https://gitlab.com/geophilo1/zero2truesize/releases)
-[![License](https://img.shields.io/badge/license-GPL--3.0-orange)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0--or--later-orange)](LICENSE)
 [![QGIS Plugin Hub](https://img.shields.io/badge/QGIS%20Hub-install-589632?logo=qgis&logoColor=white)](https://plugins.qgis.org/plugins/zero2truesize/)
 
 <img src="docs/hero.png" width="860" alt="02truesize — the Greenland the web map shows you vs its true size"/>
@@ -101,7 +101,7 @@ not have ADM1 coverage; the panel then suggests ADM0.
 
 ## 📜 License & author
 
-GPL-3.0 © [Yusuf Eminoğlu](https://github.com/YusufEminoglu) — bug reports and feature requests welcome in [Issues](https://gitlab.com/geophilo1/zero2truesize/-/issues).
+GPL-3.0-or-later © [Yusuf Eminoğlu](https://github.com/YusufEminoglu) — bug reports and feature requests welcome in [Issues](https://gitlab.com/geophilo1/zero2truesize/-/issues).
 
 World outlines derived from QGIS's bundled Natural Earth data (public domain). Inspired by [thetruesize.com](https://thetruesize.com) by James Talmage & Damon Maneice.
 ADM1 vectors come from [Natural Earth Admin 1 — States, Provinces](https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-1-states-provinces/)
