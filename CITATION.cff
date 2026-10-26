@@ -1,0 +1,13 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "Eminoglu"
+    given-names: "Yusuf"
+    email: "yusuf.eminoglu@deu.edu.tr"
+    orcid: "https://orcid.org/0009-0005-6000-2934"
+title: "02truesize - Map Truth Lab"
+version: "0.5.0"
+doi: "10.5281/zenodo.23673850"
+date-released: "2026-10-17"
+url: "https://github.com/YusufEminoglu/zero2truesize"
+abstract: "Drag countries or downloaded ADM0/ADM1 administrative vectors anywhere to compare true size, grade projection honesty and explore geodesy."
