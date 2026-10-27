@@ -3,7 +3,7 @@ name=02TrueSize - Map Truth Lab
 qgisMinimumVersion=3.28
 qgisMaximumVersion=4.99
 description=Drag countries and regions across the map to see their true size, play Size Duel, and grade any projection with Tissot circles, a distortion report card and a projection recommender.
-version=0.5.0
+version=0.5.1
 author=Geophilo
 email=yusuf.eminoglu@deu.edu.tr
 
