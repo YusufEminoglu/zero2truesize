@@ -1,11 +1,10 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
 authors:
-  - family-names: "Eminoglu"
-    given-names: "Yusuf"
+  - name: "Geophilo"
     email: "yusuf.eminoglu@deu.edu.tr"
     orcid: "https://orcid.org/0009-0005-6000-2934"
-title: "02truesize - Map Truth Lab"
+title: "02TrueSize - Map Truth Lab"
 version: "0.5.0"
 doi: "10.5281/zenodo.23673850"
 date-released: "2026-10-17"
